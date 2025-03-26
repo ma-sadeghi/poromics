@@ -7,6 +7,9 @@ resolution-markers = [
     "python_full_version < '3.11'",
 ]
 
+[manifest]
+constraints = [{ name = "numba", specifier = ">0.59.0" }]
+
 [[package]]
 name = "annotated-types"
 version = "0.7.0"

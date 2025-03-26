@@ -47,7 +47,7 @@ dependencies = [
 poromics = "poromics.cli:app"
 
 [tool.coverage.run]
-omit = ["./src/_version.py", "./src/__init__.py", "./tests/*"]
+omit = ["./src/poromics/version.py", "./src/poromics/__init__.py", "./tests/*"]
 
 [tool.hatch.build.targets.sdist]
 include = ["src/poromics"]
@@ -73,8 +73,10 @@ testpaths = ["tests", "integration"]
 norecursedirs = [".git", ".github", ".ipynb_checkpoints", "build", "dist"]
 
 [tool.ruff]
-exclude = [".venv", "./src/_version.py"]
+exclude = [".venv", "./src/poromics/version.py"]
 line-length = 92
 
 [tool.uv]
 default-groups = ["dev", "build"]
+# Ensure that the numba version is > 0.59.0 until astral-sh/uv/issues/12060 is fixed
+constraint-dependencies = ["numba>0.59.0"]
