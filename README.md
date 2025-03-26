@@ -4,9 +4,24 @@ Poromics is a set of tools for rapid estimation of transport properties of 3D im
 
 ## Installation
 
-Poromics depends on the Julia package [Tortuosity.jl](https://github.com/ma-sadeghi/Tortuosity.jl/). However, it is not necessary to install Julia separately. The package will be installed automatically when you install Poromics.
+Poromics depends on the Julia package [Tortuosity.jl](https://github.com/ma-sadeghi/Tortuosity.jl/). However, it is not necessary to install Julia separately. The package will be installed automatically when you install `poromics`.
 
-```bash
+> [!NOTE]
+> We highly recommend using `uv` instead of `pip` to install `poromics` (or any other Python package!) as it's extremely faster. It has lots of useful features, but for all practical purposes, it is a drop-in replacement for `pip`.
+
+### Uv
+
+Install [`uv`](https://docs.astral.sh/uv/getting-started/installation/), and then run the following command in a terminal/command prompt:
+
+```shell
+uv pip install poromics
+```
+
+### Pip
+
+If you prefer to use `pip`, run the following command in a terminal/command prompt:
+
+```shell
 pip install poromics
 ```
 
