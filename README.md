@@ -12,14 +12,24 @@ pip install poromics
 
 ## Basic Usage
 
+> [!NOTE]
+> The first time you import `poromics`, it will take a few minutes to install Julia and the required packages. This is a one-time setup.
+
 ```python
 import porespy as ps
 import poromics
 
 im = ps.generators.blobs(shape=[100, 100, 1], porosity=0.6)  # Test image
 result = poromics.tortuosity_fd(im, axis=1, rtol=1e-5, gpu=True)
-print(result)  # result has the following attributes: im, axis, tau, c
+print(result)
 ```
+
+The `Result` object is a simple container with the following attributes:
+
+- `im`: The tortuosity factor of the image.
+- `axis`: The axis along which the tortuosity was calculated.
+- `tau`: The tortuosity factor.
+- `c`: The concentration field.
 
 ## CLI
 
@@ -29,3 +39,10 @@ print(result)  # result has the following attributes: im, axis, tau, c
 ```bash
 poromics --help
 ```
+
+## Roadmap
+
+- [ ] Speed up matrix assembly by direct assembly on GPU.
+- [ ] Create Julia sysimage files upon installation for faster startup.
+- [ ] Add more transport properties (e.g. permeability).
+- [ ] Add CLI support.
