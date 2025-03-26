@@ -16,9 +16,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
         with:
-          python-version-file: .python-version
+          enable-cache: true
+          cache-dependency-glob: "**/pyproject.toml"
 
       - name: "Update Lockfiles and Open PR"
         uses: tedivm/action-python-lockfile-update@v2
