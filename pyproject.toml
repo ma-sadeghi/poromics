@@ -35,6 +35,7 @@ dependencies = [
   "juliacall>=0.9.24",
   "juliapkg>=0.1.16",
   "loguru>=0.7.3",
+  "numba>=0.59.0",
   "numpy>=2.1.3",
   "porespy>=2.4.2",
   "pydantic~=2.0",
@@ -78,5 +79,5 @@ line-length = 92
 
 [tool.uv]
 default-groups = ["dev", "build"]
-# Ensure that the numba version is > 0.59.0 until astral-sh/uv/issues/12060 is fixed
-constraint-dependencies = ["numba>0.59.0"]
+# Ensure that the numba version is >= 0.59.0 until astral-sh/uv/issues/12060 is fixed
+constraint-dependencies = ["numba>=0.59.0"]
