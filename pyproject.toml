@@ -16,18 +16,18 @@ dev = [
   "ruamel-yaml>=0.18.10",
   "ruff>=0.11.2",
   "toml-sort>=0.24.2",
-  "types-tqdm>=4.67.0.20250319",
+  "types-tqdm>=4.67.0.20250319"
 ]
 build = ["hatch>=1.14.0"]
 
 [project]
-authors = [{ "name" = "Amin Sadeghi", email = "amin.sadeghi@live.com" }]
-maintainers = [{ name = "Amin Sadeghi", email = "amin.sadeghi@live.com" }]
+authors = [{"name" = "Amin Sadeghi", email = "amin.sadeghi@live.com"}]
+maintainers = [{name = "Amin Sadeghi", email = "amin.sadeghi@live.com"}]
 description = "A tool for rapid estimation of transport properties of 3D images of porous materials"
 dynamic = ["version"]
-license = { "file" = "LICENSE" }
+license = {"file" = "LICENSE"}
 name = "poromics"
-readme = { file = "README.md", content-type = "text/markdown" }
+readme = {file = "README.md", content-type = "text/markdown"}
 requires-python = ">=3.10, <3.13"
 dependencies = [
   "ipykernel>=6.29.5",
@@ -40,7 +40,7 @@ dependencies = [
   "pydantic~=2.0",
   "pydantic-settings",
   "tqdm>=4.67.1",
-  "typer",
+  "typer"
 ]
 
 [project.scripts]
