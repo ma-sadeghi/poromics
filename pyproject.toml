@@ -1,0 +1,80 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+  "build>=1.2.2.post1",
+  "dapperdata>=0.4.0",
+  "glom>=24.11.0",
+  "ipython>=8.34.0",
+  "mypy>=1.15.0",
+  "pytest>=8.3.5",
+  "pytest-asyncio>=0.26.0",
+  "pytest-cov>=6.0.0",
+  "pytest-pretty>=1.2.0",
+  "ruamel-yaml>=0.18.10",
+  "ruff>=0.11.2",
+  "toml-sort>=0.24.2",
+  "types-tqdm>=4.67.0.20250319",
+]
+build = ["hatch>=1.14.0"]
+
+[project]
+authors = [{ "name" = "Amin Sadeghi", email = "amin.sadeghi@live.com" }]
+maintainers = [{ name = "Amin Sadeghi", email = "amin.sadeghi@live.com" }]
+description = "A tool for rapid estimation of transport properties of 3D images of porous materials"
+dynamic = ["version"]
+license = { "file" = "LICENSE" }
+name = "poromics"
+readme = { file = "README.md", content-type = "text/markdown" }
+requires-python = ">=3.10, <3.13"
+dependencies = [
+  "ipykernel>=6.29.5",
+  "ipython>=8.34.0",
+  "juliacall>=0.9.24",
+  "juliapkg>=0.1.16",
+  "loguru>=0.7.3",
+  "numpy>=2.1.3",
+  "porespy>=2.4.2",
+  "pydantic~=2.0",
+  "pydantic-settings",
+  "tqdm>=4.67.1",
+  "typer",
+]
+
+[project.scripts]
+poromics = "poromics.cli:app"
+
+[tool.coverage.run]
+omit = ["./src/_version.py", "./src/__init__.py", "./tests/*"]
+
+[tool.hatch.build.targets.sdist]
+include = ["src/poromics"]
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.version]
+path = "src/poromics/version.py"
+
+[tool.mypy]
+plugins = ["pydantic.mypy"]
+follow_untyped_imports = true
+
+[tool.pytest.ini_options]
+addopts = "-ra -vv --durations=5 --assert=plain"
+asyncio_default_fixture_loop_scope = "function"
+minversion = "6.0"
+python_files = "*.py"
+python_classes = "*Test"
+python_functions = "test_*"
+testpaths = ["tests", "integration"]
+norecursedirs = [".git", ".github", ".ipynb_checkpoints", "build", "dist"]
+
+[tool.ruff]
+exclude = [".venv", "./src/_version.py"]
+line-length = 92
+
+[tool.uv]
+default-groups = ["dev", "build"]
