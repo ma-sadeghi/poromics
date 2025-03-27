@@ -16,8 +16,12 @@ logger_fmt = logger_fmt.replace(".SSS", "")
 logger.add(lambda msg: tqdm.write(msg, end=""), format=logger_fmt, colorize=True)
 
 
-def install_julia(quiet: bool = False):
-    """Installs Julia using juliapkg."""
+def install_julia(quiet: bool = False) -> None:
+    """Installs Julia using juliapkg.
+
+    Args:
+        quiet: If True, suppresses output during installation. Default is False.
+    """
     # Importing juliacall automatically installs Julia using juliapkg
     if quiet:
         with suppress_output():
@@ -26,12 +30,10 @@ def install_julia(quiet: bool = False):
         import juliacall  # noqa: F401
 
 
-def install_backend(quiet: bool = False):
+def install_backend(quiet: bool = False) -> None:
     """Installs Julia dependencies for Poromics.
 
     Args:
-        ec_path: Path to the local copy of Tortuosity.jl. Default is None.
-            If None, the remote version will be used.
         quiet: If True, suppresses output during installation. Default is False.
 
     Raises:
@@ -46,14 +48,14 @@ def install_backend(quiet: bool = False):
         juliapkg.resolve()
 
 
-def init_julia(quiet: bool = False):
+def init_julia(quiet: bool = False) -> "juliacall.ModuleValue":
     """Initializes Julia and returns the Main module.
 
     Args:
         quiet: If True, suppresses the output of Julia initialization. Default is False.
 
     Returns:
-        The Julia Main module.
+        Main: The Julia Main module.
 
     Raises:
         ImportError: If Julia is not installed.
@@ -70,7 +72,9 @@ def init_julia(quiet: bool = False):
     return Main
 
 
-def import_package(package_name: str, Main, error: bool = False):
+def import_package(
+    package_name: str, Main: "juliacall.ModuleValue", error: bool = False
+) -> "juliacall.ModuleValue":
     """Imports a package in Julia and returns the module.
 
     Args:
@@ -79,7 +83,7 @@ def import_package(package_name: str, Main, error: bool = False):
         error: If True, raises an error if the package is not found. Default is False.
 
     Returns:
-        The imported Julia module.
+        package: Handle to the imported package.
 
     Raises:
         ImportError: If the package is not found and error is True.
@@ -95,15 +99,15 @@ def import_package(package_name: str, Main, error: bool = False):
     return None
 
 
-def import_backend(Main=None):
+def import_backend(Main: "juliacall.ModuleValue" = None) -> "juliacall.ModuleValue":
     """Imports Tortuosity.jl package from Julia.
 
     Args:
         Main: Julia Main module. Default is None. If None, the Main module will
-        be initialized.
+            be initialized.
 
     Returns:
-        The imported Julia module.
+        backend: Handle to the Tortuosity.jl package.
 
     Raises:
         ImportError: If Julia is not installed or the package is not found.
@@ -113,8 +117,18 @@ def import_backend(Main=None):
     return import_package("Tortuosity", Main)
 
 
-def is_julia_installed(error: bool = False):
-    """Checks that Julia is installed."""
+def is_julia_installed(error: bool = False) -> bool:
+    """Checks that Julia is installed.
+
+    Args:
+        error: If True, raises an error if Julia is not found. Default is False.
+
+    Returns:
+        flag: True if Julia is installed, False otherwise.
+
+    Raises:
+        ImportError: If Julia is not installed and error is True.
+    """
     # Look for system-wide Julia executable
     try:
         find_julia()
@@ -130,18 +144,18 @@ def is_julia_installed(error: bool = False):
     return False
 
 
-def is_backend_installed(Main=None, error: bool = False):
+def is_backend_installed(Main: "juliacall.ModuleValue" = None, error: bool = False) -> bool:
     """Checks if Tortuosity.jl is installed.
 
     Args:
-        Main: Julia Main module. Default is None. If None, the Main module will be
-        error: If True, raises an error if the package is not found. Default is False.
+        Main: Julia Main module. Default is None. If None, it will be initialized.
+        error: If True, raises an error if backend is not found. Default is False.
 
     Returns:
-        bool: True if the package is installed, False otherwise.
+        flag: True if the package is installed, False otherwise.
 
     Raises:
-        ImportError: If Julia is not installed or the package is not found and error is True.
+        ImportError: If Julia is not installed or backend is not found and error is True.
     """
     Main = init_julia() if Main is None else Main
     if import_package("Tortuosity", Main, error=False) is not None:
@@ -152,8 +166,16 @@ def is_backend_installed(Main=None, error: bool = False):
     return False
 
 
-def ensure_julia_deps_ready(quiet: bool = False, retry: bool = True):
-    """Ensures Julia and Tortuosity.jl are installed."""
+def ensure_julia_deps_ready(quiet: bool = False, retry: bool = True) -> None:
+    """Ensures Julia and Tortuosity.jl are installed.
+
+    Args:
+        quiet: If True, suppresses output during installation. Default is False.
+        retry: If True, retries the installation if it fails. Default is True.
+
+    Raises:
+        ImportError: If Julia or Tortuosity.jl cannot be installed.
+    """
 
     def _ensure_julia_deps_ready(quiet):
         if not is_julia_installed(error=False):
@@ -182,7 +204,7 @@ def ensure_julia_deps_ready(quiet: bool = False, retry: bool = True):
         raise
 
 
-def remove_julia_env():
+def remove_julia_env() -> None:
     """Removes the active Julia environment directory.
 
     When Julia or its dependencies are corrupted, this is a possible fix.
