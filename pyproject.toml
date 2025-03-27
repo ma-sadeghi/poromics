@@ -21,7 +21,7 @@ dev = [
   "ruamel-yaml>=0.18.10",
   "ruff>=0.11.2",
   "toml-sort>=0.24.2",
-  "types-tqdm>=4.67.0.20250319",
+  "types-tqdm>=4.67.0.20250319"
 ]
 build = ["hatch>=1.14.0"]
 
@@ -81,6 +81,7 @@ norecursedirs = [".git", ".github", ".ipynb_checkpoints", "build", "dist"]
 [tool.ruff]
 exclude = [".venv", "./src/poromics/version.py"]
 line-length = 92
+lint.per-file-ignores = {"julia_helpers.py" = ["F821"]}
 
 [tool.uv]
 default-groups = ["dev", "build"]
