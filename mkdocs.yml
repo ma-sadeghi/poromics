@@ -1,4 +1,4 @@
-site_name: "Poromics"
+site_name: "Poromics: <span id='subtitle'>Porous Media Analytics<span/>"
 site_url: https://ma-sadeghi.github.io/poromics
 theme:
   name: material

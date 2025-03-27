@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=PT+Sans:ital,wght@0,400;0,700;1,400;1,700&display=swap');
+
 html {
     font-size: 22px !important;
 }
@@ -8,5 +10,13 @@ a.md-header__button.md-logo {
 }
 
 a.md-header__button.md-logo > img {
-    height: 1.8rem !important;
+    height: 1.5rem !important;
+}
+
+span.md-ellipsis > span {
+    font-weight: lighter !important;
+}
+
+span.md-ellipsis {
+    font-family: 'PT Sans';
 }
