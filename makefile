@@ -87,3 +87,6 @@ publish: $(PACKAGE_CHECK)
 
 deploy-docs:
 	uv run mkdocs gh-deploy --force
+
+serve-docs:
+	uv run mkdocs serve
