@@ -1,6 +1,6 @@
 import numpy as np
 import porespy as ps
-
+import pytest
 from poromics._metrics import tortuosity_fd
 
 
@@ -29,10 +29,9 @@ def test_tau_half_open_channel():
     # Channel is half-open, but eps is also 0.5, so tortuosity is still 1
     assert np.allclose(result_y.tau, 1.0)
     assert np.allclose(result_z.tau, 1.0)
-    # Calculate tortuosity along the channel axis
-    result_x = tortuosity_fd(im, axis=0, rtol=1e-5, gpu=False)
-    # The tortuosity should be undefined since there's no percolating path
-    assert np.isnan(result_x.tau)
+    # Calculate tortuosity along the channel axis, which is blocked!
+    with pytest.raises(RuntimeError):
+        tortuosity_fd(im, axis=0, rtol=1e-5, gpu=False)
 
 
 def test_tau_blobs():

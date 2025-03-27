@@ -51,11 +51,11 @@ def tortuosity_fd(im, *, axis: int, rtol: float = 1e-5, gpu: bool = False) -> Re
         RuntimeError: If no percolating paths are found along the specified axis.
     """
     axis_jl = _jl.Symbol(["x", "y", "z"][axis])
-    im = _taujl.Imaginator.trim_nonpercolating_paths(im, axis_jl)
-    if im.sum() == 0:
+    im = _taujl.Imaginator.trim_nonpercolating_paths(im, axis=axis_jl)
+    if _jl.sum(im) == 0:
         raise RuntimeError("No percolating paths along the given axis found in the image.")
     sim = _taujl.TortuositySimulation(im, axis=axis_jl, gpu=gpu)
     sol = _taujl.solve(sim.prob, _taujl.KrylovJL_CG(), verbose=False, reltol=rtol)
     c_grid = _taujl.vec_to_grid(sol.u, im)
-    tau = _taujl.tortuosity(c_grid, axis_jl)
+    tau = _taujl.tortuosity(c_grid, axis=axis_jl)
     return Result(im, axis, tau, c_grid)
