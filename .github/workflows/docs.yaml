@@ -3,7 +3,6 @@ name: Documentation
 on:
   push:
     branches:
-      - master
       - main
 
 permissions:
@@ -29,4 +28,4 @@ jobs:
         run: make install
 
       - name: Build and Deploy Documentation
-        run: mkdocs gh-deploy --force
+        run: make deploy-docs

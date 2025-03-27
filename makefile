@@ -84,3 +84,6 @@ build: $(PACKAGE_CHECK)
 
 publish: $(PACKAGE_CHECK)
 	uv run hatch publish
+
+deploy-docs:
+	uv run mkdocs gh-deploy --force
