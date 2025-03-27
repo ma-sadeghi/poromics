@@ -66,12 +66,15 @@ jobs:
           enable-cache: true
           cache-dependency-glob: "**/pyproject.toml"
 
-      - name: Set up Python 3.10
-        run: uv python install 3.10
+      # Setting up Julia separately is not needed, but reduces CI time due to caching
+      - uses: julia-actions/setup-julia@v2
+        with:
+          version: "1"
 
-      - name: Install AutoEIS
+      - uses: julia-actions/cache@v2
+      - name: Install Dependencies
         run: |
-          uv sync
+          make install
 
       - name: Ensure no mismatch between recent tag and new version
         run: |
