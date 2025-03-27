@@ -164,7 +164,7 @@ cython_debug/
 poromics/_version.py
 
 # System prompts
-.github/*.md
+.github/copilot-commit-message-instructions.md
 
 # Development files
 dev-juliapkg.json
