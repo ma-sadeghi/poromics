@@ -165,3 +165,6 @@ poromics/_version.py
 
 # System prompts
 .github/*.md
+
+# Development files
+dev-juliapkg.json
