@@ -8,6 +8,11 @@ dev = [
   "dapperdata>=0.4.0",
   "glom>=24.11.0",
   "ipython>=8.34.0",
+  "markdown-exec>=1.10.3",
+  "mkdocs-jupyter>=0.25.1",
+  "mkdocs-material>=9.6.9",
+  "mkdocs-matplotlib>=0.10.1",
+  "mkdocstrings[python]>=0.29.0",
   "mypy>=1.15.0",
   "pytest>=8.3.5",
   "pytest-asyncio>=0.26.0",
@@ -16,7 +21,7 @@ dev = [
   "ruamel-yaml>=0.18.10",
   "ruff>=0.11.2",
   "toml-sort>=0.24.2",
-  "types-tqdm>=4.67.0.20250319"
+  "types-tqdm>=4.67.0.20250319",
 ]
 build = ["hatch>=1.14.0"]
 
