@@ -32,7 +32,10 @@ class Result:
 
 def tortuosity_fd(im, *, axis: int, rtol: float = 1e-5, gpu: bool = False) -> Result:
     """
-    Performs a tortuosity simulation on the given image along the specified axis."
+    Performs a tortuosity simulation on the given image along the specified axis.
+
+    The function removes non-percolating paths from the image before performing
+    the tortuosity calculation.
 
     Args:
         im (ndarray): The input image.
@@ -41,11 +44,16 @@ def tortuosity_fd(im, *, axis: int, rtol: float = 1e-5, gpu: bool = False) -> Re
         gpu (bool): If True, use GPU for computation.
 
     Returns:
-        Result: An object containing the original image, axis, tortuosity,
-        and concentration grid.
+        result: An object containing the boolean image, axis, tortuosity, and
+            concentration.
 
+    Raises:
+        RuntimeError: If no percolating paths are found along the specified axis.
     """
     axis_jl = _jl.Symbol(["x", "y", "z"][axis])
+    im = _taujl.Imaginator.trim_nonpercolating_paths(im, axis_jl)
+    if im.sum() == 0:
+        raise RuntimeError("No percolating paths along the given axis found in the image.")
     sim = _taujl.TortuositySimulation(im, axis=axis_jl, gpu=gpu)
     sol = _taujl.solve(sim.prob, _taujl.KrylovJL_CG(), verbose=False, reltol=rtol)
     c_grid = _taujl.vec_to_grid(sol.u, im)
