@@ -4,6 +4,10 @@ html {
     font-size: 22px !important;
 }
 
+body {
+    min-width: 350px !important;
+}
+
 a.md-header__button.md-logo {
     padding-top: 0 !important;
     padding-bottom: 0 !important;
@@ -11,6 +15,12 @@ a.md-header__button.md-logo {
 
 a.md-header__button.md-logo > img {
     height: 1.5rem !important;
+}
+
+@media screen and (max-width: 500px) {
+    h2 + p > img {
+        width: 100% !important;
+    }
 }
 
 span.md-ellipsis > span {
