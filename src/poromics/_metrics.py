@@ -1,6 +1,15 @@
+import os
+from pathlib import Path
+
+import numpy as np
+
 from poromics import julia_helpers
 
 __all__ = ["tortuosity_fd", "_jl", "_taujl"]
+
+# os.environ["PYTHON_JULIACALL_SYSIMAGE"] = str(Path(__file__).parents[2] / "sysimage.so")
+os.environ["PYTHON_JULIACALL_STARTUP_FILE"] = "no"
+os.environ["PYTHON_JULIACALL_AUTOLOAD_IPYTHON_EXTENSION"] = "no"
 
 julia_helpers.ensure_julia_deps_ready(quiet=False)
 
@@ -56,6 +65,6 @@ def tortuosity_fd(im, *, axis: int, rtol: float = 1e-5, gpu: bool = False) -> Re
         raise RuntimeError("No percolating paths along the given axis found in the image.")
     sim = _taujl.TortuositySimulation(im, axis=axis_jl, gpu=gpu)
     sol = _taujl.solve(sim.prob, _taujl.KrylovJL_CG(), verbose=False, reltol=rtol)
-    c_grid = _taujl.vec_to_grid(sol.u, im)
-    tau = _taujl.tortuosity(c_grid, axis=axis_jl)
-    return Result(im, axis, tau, c_grid)
+    c = _taujl.vec_to_grid(sol.u, im)
+    tau = _taujl.tortuosity(c, axis=axis_jl)
+    return Result(np.asarray(im), axis, tau, np.asarray(c))
