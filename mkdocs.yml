@@ -1,22 +1,24 @@
-site_name: "Poromics: <span id='subtitle'>Porous Media Analytics<span/>"
-site_url: https://ma-sadeghi.github.io/poromics
+site_name: "Poromics"
+site_url: https://ma-sadeghi.github.io/poromics/
+repo_url: https://github.com/ma-sadeghi/poromics/
+
 theme:
   name: material
   logo: assets/logo.png
   palette:
     # Palette toggle for light mode
-    - primary: lime
+    - primary: deep purple
       toggle:
         icon: material/brightness-7
         name: Switch to light mode
     # Palette toggle for dark mode
     - scheme: slate
-      primary: lime
+      primary: darkblue
       toggle:
         icon: material/brightness-4
         name: Switch to light mode
   font:
-    text: Open Sans
+    text: Roboto
   features:
     # - navigation.tabs  # Enable tabs in the navigation bar, but breaks sidebar
     - navigation.top

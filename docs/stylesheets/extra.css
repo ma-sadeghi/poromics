@@ -1,20 +1,20 @@
-@import url('https://fonts.googleapis.com/css2?family=PT+Sans:ital,wght@0,400;0,700;1,400;1,700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Recursive:wght@300..1000&display=swap');
 
-html {
+/* html {
     font-size: 22px !important;
-}
+} */
 
 body {
     min-width: 350px !important;
 }
 
 a.md-header__button.md-logo {
-    padding-top: 0 !important;
-    padding-bottom: 0 !important;
+    padding-top: 0.2rem !important;
+    padding-bottom: 0.2rem !important;
 }
 
 a.md-header__button.md-logo > img {
-    height: 1.5rem !important;
+    height: 1.8rem !important;
 }
 
 @media screen and (max-width: 500px) {
@@ -27,6 +27,6 @@ span.md-ellipsis > span {
     font-weight: lighter !important;
 }
 
-span.md-ellipsis {
-    font-family: 'PT Sans';
-}
+/* span.md-ellipsis {
+    font-family: 'Recursive', sans-serif;
+} */

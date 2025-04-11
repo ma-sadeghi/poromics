@@ -2,7 +2,7 @@
 
 ## What is Poromics?
 
-![Poromics logo](assets/logo.png){ width="320px" align=right }
+![Poromics logo](assets/logo-old.png){ width="320px" align=right }
 
 Poromics is an open-source Python package for estimation of transport properties of 2D/3D images of porous materials. The main design philosophies driving Poromics are speed and ease of use. Poromics is developed alongside the Julia library [Tortuosity.jl](https://github.com/ma-sadeghi/Tortuosity.jl/), which serves as its tortuosity simulation engine.
 
