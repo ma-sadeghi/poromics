@@ -2,6 +2,7 @@ import os
 
 # from pathlib import Path
 import numpy as np
+from loguru import logger
 
 from poromics import julia_helpers
 
@@ -39,7 +40,9 @@ class Result:
         return f"Result(τ = {self.tau:.2f}, axis = {self.axis})"
 
 
-def tortuosity_fd(im, *, axis: int, rtol: float = 1e-5, gpu: bool = False) -> Result:
+def tortuosity_fd(
+    im, *, axis: int, D: np.ndarray = None, rtol: float = 1e-5, gpu: bool = False
+) -> Result:
     """
     Performs a tortuosity simulation on the given image along the specified axis.
 
@@ -49,6 +52,7 @@ def tortuosity_fd(im, *, axis: int, rtol: float = 1e-5, gpu: bool = False) -> Re
     Args:
         im (ndarray): The input image.
         axis (int): The axis along which to compute tortuosity (0=x, 1=y, 2=z).
+        D (ndarray): Diffusivity field. If None, a uniform diffusivity of 1.0 is assumed.
         rtol (float): Relative tolerance for the solver.
         gpu (bool): If True, use GPU for computation.
 
@@ -60,10 +64,17 @@ def tortuosity_fd(im, *, axis: int, rtol: float = 1e-5, gpu: bool = False) -> Re
         RuntimeError: If no percolating paths are found along the specified axis.
     """
     axis_jl = _jl.Symbol(["x", "y", "z"][axis])
-    im = _taujl.Imaginator.trim_nonpercolating_paths(im, axis=axis_jl)
+    eps0 = _taujl.Imaginator.phase_fraction(im)
+    im = np.array(_taujl.Imaginator.trim_nonpercolating_paths(im, axis=axis_jl))
     if _jl.sum(im) == 0:
         raise RuntimeError("No percolating paths along the given axis found in the image.")
-    sim = _taujl.TortuositySimulation(im, axis=axis_jl, gpu=gpu)
+    eps = _taujl.Imaginator.phase_fraction(im)
+    if eps[1] != eps0[1]:
+        # Trim the diffusivity field as well
+        if D is not None:
+            D[~im] = 0.0
+        logger.warning("The image has been trimmed to ensure percolation.")
+    sim = _taujl.TortuositySimulation(im, D=D, axis=axis_jl, gpu=gpu)
     sol = _taujl.solve(sim.prob, _taujl.KrylovJL_CG(), verbose=False, reltol=rtol)
     c = _taujl.vec_to_grid(sol.u, im)
     tau = _taujl.tortuosity(c, axis=axis_jl)
