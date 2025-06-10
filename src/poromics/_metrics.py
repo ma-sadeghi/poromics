@@ -77,5 +77,5 @@ def tortuosity_fd(
     sim = _taujl.TortuositySimulation(im, D=D, axis=axis_jl, gpu=gpu)
     sol = _taujl.solve(sim.prob, _taujl.KrylovJL_CG(), verbose=False, reltol=rtol)
     c = _taujl.vec_to_grid(sol.u, im)
-    tau = _taujl.tortuosity(c, axis=axis_jl)
+    tau = _taujl.tortuosity(c, axis=axis_jl, D=D)
     return Result(np.asarray(im), axis, tau, np.asarray(c))
