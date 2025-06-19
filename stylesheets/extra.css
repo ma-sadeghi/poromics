@@ -1,0 +1,32 @@
+@import url('https://fonts.googleapis.com/css2?family=Recursive:wght@300..1000&display=swap');
+
+/* html {
+    font-size: 22px !important;
+} */
+
+body {
+    min-width: 350px !important;
+}
+
+a.md-header__button.md-logo {
+    padding-top: 0.2rem !important;
+    padding-bottom: 0.2rem !important;
+}
+
+a.md-header__button.md-logo > img {
+    height: 1.8rem !important;
+}
+
+@media screen and (max-width: 500px) {
+    h2 + p > img {
+        width: 100% !important;
+    }
+}
+
+span.md-ellipsis > span {
+    font-weight: lighter !important;
+}
+
+/* span.md-ellipsis {
+    font-family: 'Recursive', sans-serif;
+} */
