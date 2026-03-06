@@ -165,6 +165,7 @@ poromics/_version.py
 
 # System prompts
 .github/copilot-commit-message-instructions.md
+CLAUDE.md
 
 # Development files
 dev-juliapkg.json
