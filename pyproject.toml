@@ -81,7 +81,7 @@ norecursedirs = [".git", ".github", ".ipynb_checkpoints", "build", "dist"]
 
 [tool.ruff]
 exclude = [".venv", "./src/poromics/version.py"]
-line-length = 92
+line-length = 95
 lint.per-file-ignores = {"julia_helpers.py" = ["F821"]}
 
 [tool.uv]
