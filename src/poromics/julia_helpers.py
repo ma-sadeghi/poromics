@@ -75,9 +75,7 @@ def init_julia(quiet: bool = False) -> Any:
     return Main
 
 
-def import_package(
-    package_name: str, Main: Any, error: bool = False
-) -> Any:
+def import_package(package_name: str, Main: Any, error: bool = False) -> Any:
     """Imports a package in Julia and returns the module.
 
     Args:
