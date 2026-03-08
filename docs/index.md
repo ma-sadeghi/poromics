@@ -4,9 +4,12 @@
 
 ![Poromics logo](assets/logo-old.png){ width="320px" align=right }
 
-Poromics is an open-source Python package for estimation of transport properties of 2D/3D images of porous materials. The main design philosophies driving Poromics are speed and ease of use. Poromics is developed alongside the Julia library [Tortuosity.jl](https://github.com/ma-sadeghi/Tortuosity.jl/), which serves as its tortuosity simulation engine.
+Poromics is an open-source Python package for estimation of transport properties of 3D images of porous materials. The main design philosophies driving Poromics are speed and ease of use. Poromics is GPU-accelerated via [Taichi](https://www.taichi-lang.org/) (LBM solvers) and optionally via Julia/CUDA ([Tortuosity.jl](https://github.com/ma-sadeghi/Tortuosity.jl/) FD solver).
 
-The goal is to support more transport properties in the future such as permeability, transient tortuosity, etc. Poromics is GPU-compatible right out of the box, which can significantly speed up the calculations for large images (up to 50x speedup).
+**Supported properties:**
+
+- **Tortuosity / effective diffusivity** — via Julia FD solver (`tortuosity_fd`) or Taichi LBM D3Q7 BGK (`tortuosity_lbm`)
+- **Absolute permeability** — via Taichi LBM D3Q19 MRT (`permeability_lbm`)
 
 ![Tortuosity simulation workflow](assets/workflow.png){ width="100%" }
 /// caption
@@ -15,13 +18,21 @@ A typical workflow for estimating tortuosity. The user loads a 2D/3D image of a 
 
 ## Roadmap
 
-- [ ] Add support for more transport properties
-    - [x] Diffusional tortuosity
-    - [ ] [Electrode tortuosity](https://doi.org/10.1038/s41524-020-00386-4)
-    - [ ] Transient tortuosity
-    - [ ] Permeability
+- [x] Diffusional tortuosity
+    - [x] Julia FD solver ([Tortuosity.jl](https://github.com/ma-sadeghi/Tortuosity.jl/))
+    - [x] Taichi LBM D3Q7 BGK solver
+- [ ] Transient tortuosity
+    - [ ] Julia FD solver ([Tortuosity.jl](https://github.com/ma-sadeghi/Tortuosity.jl/))
+- [x] Permeability
+    - [x] Taichi LBM D3Q19 MRT solver
+- [ ] [Electrode tortuosity](https://doi.org/10.1038/s41524-020-00386-4)
+- [x] Julia/Taichi coexistence via subprocess isolation
 - [ ] Add command-line interface (CLI) for easy usage
 - [ ] Add support for [sysimage](https://julialang.github.io/PackageCompiler.jl/dev/sysimages.html) creation upon installation for faster startup
+
+## Acknowledgments
+
+The LBM solvers are based on [taichi_LBM3D](https://github.com/yjhp1016/taichi_LBM3D) by Yi-Jie Huang. The FD tortuosity solver uses [Tortuosity.jl](https://github.com/ma-sadeghi/Tortuosity.jl/).
 
 ## Contributing
 

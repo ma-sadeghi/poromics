@@ -87,16 +87,20 @@ print(solver.concentration.shape, solver.converged)
 poromics --help
 ```
 
+## Acknowledgments
+
+The LBM solvers are based on [taichi_LBM3D](https://github.com/yjhp1016/taichi_LBM3D) by Yi-Jie Huang.
+
 ## Roadmap
 
-**Done:**
-
-- [x] Tortuosity / effective diffusivity via Julia FD solver (`tortuosity_fd`)
-- [x] GPU-accelerated tortuosity via Taichi LBM D3Q7 BGK (`tortuosity_lbm`)
-- [x] GPU-accelerated permeability via Taichi LBM D3Q19 MRT (`permeability_lbm`)
+- [x] Diffusional tortuosity
+    - [x] Julia FD solver ([Tortuosity.jl](https://github.com/ma-sadeghi/Tortuosity.jl/))
+    - [x] Taichi LBM D3Q7 BGK solver
+- [ ] Transient tortuosity
+    - [ ] Julia FD solver ([Tortuosity.jl](https://github.com/ma-sadeghi/Tortuosity.jl/))
+- [x] Permeability
+    - [x] Taichi LBM D3Q19 MRT solver
+- [ ] [Electrode tortuosity](https://doi.org/10.1038/s41524-020-00386-4)
 - [x] Julia/Taichi coexistence via subprocess isolation
-
-**Planned:**
-
-- [ ] Create Julia sysimage files upon installation for faster startup
-- [ ] Add CLI support
+- [ ] Add command-line interface (CLI) for easy usage
+- [ ] Add support for [sysimage](https://julialang.github.io/PackageCompiler.jl/dev/sysimages.html) creation upon installation for faster startup
