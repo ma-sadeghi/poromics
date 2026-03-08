@@ -1,4 +1,5 @@
 # D3Q19 MRT Lattice Boltzmann solver for single-phase incompressible flow.
+# Based on taichi_LBM3D by Yi-Jie Huang (https://github.com/yjhp1016/taichi_LBM3D).
 import numpy as np
 
 from ._lattice import D3Q19_LR, D3Q19_M, D3Q19_M_inv

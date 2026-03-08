@@ -1,4 +1,5 @@
 # D3Q7 BGK Lattice Boltzmann solver for passive scalar diffusion.
+# Based on taichi_LBM3D by Yi-Jie Huang (https://github.com/yjhp1016/taichi_LBM3D).
 import numpy as np
 
 from ._lattice import D3Q7_LR
