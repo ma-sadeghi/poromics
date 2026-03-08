@@ -1,10 +1,12 @@
+import atexit
 import os
+import pickle
+import subprocess
+import sys
+import tempfile
 
-# from pathlib import Path
 import numpy as np
-from loguru import logger
 
-from poromics import julia_helpers
 from poromics._lbm._lattice import D3Q7Params, D3Q19Params
 from poromics.simulation import TransientDiffusion, TransientFlow
 
@@ -20,7 +22,10 @@ __all__ = [
     "PermeabilityResult",
 ]
 
-# os.environ["PYTHON_JULIACALL_SYSIMAGE"] = str(Path(__file__).parents[2] / "sysimage.so")
+_JULIA_SUBPROCESS = os.environ.get("POROMICS_JULIA_SUBPROCESS", "1") == "1"
+
+# ── In-process Julia (used when POROMICS_JULIA_SUBPROCESS=0) ─────────
+
 os.environ["PYTHON_JULIACALL_STARTUP_FILE"] = "no"
 os.environ["PYTHON_JULIACALL_AUTOLOAD_IPYTHON_EXTENSION"] = "no"
 
@@ -29,59 +34,42 @@ _taujl = None
 
 
 def _ensure_julia():
-    """Lazily initializes Julia and loads Tortuosity.jl on first call."""
+    """Lazily initialize Julia in-process. Fails if Taichi is loaded."""
     global _jl, _taujl
-    if _jl is None:
-        julia_helpers.ensure_julia_deps_ready(quiet=False)
-        _jl = julia_helpers.init_julia(quiet=False)
-        _taujl = julia_helpers.import_backend(_jl)
+    if _jl is not None:
+        return _jl, _taujl
+    from poromics._lbm._taichi_helpers import _ti
+    if _ti is not None:
+        raise RuntimeError(
+            "Cannot initialize Julia in the same process as Taichi "
+            "(LLVM symbol collision). Either call tortuosity_fd before "
+            "any LBM function, or set POROMICS_JULIA_SUBPROCESS=1."
+        )
+    from poromics import julia_helpers
+    julia_helpers.ensure_julia_deps_ready(quiet=False)
+    _jl = julia_helpers.init_julia(quiet=False)
+    _taujl = julia_helpers.import_backend(_jl)
     return _jl, _taujl
 
 
-def tortuosity_fd(
-    im,
-    *,
-    axis: int,
-    D: np.ndarray = None,
-    rtol: float = 1e-5,
-    gpu: bool = False,
-    verbose: bool = False,
-) -> "TortuosityResult":
-    """
-    Performs a tortuosity simulation on the given image along the specified axis.
-
-    The function removes non-percolating paths from the image before performing
-    the tortuosity calculation.
-
-    Args:
-        im (ndarray): The input image.
-        axis (int): The axis along which to compute tortuosity (0=x, 1=y, 2=z).
-        D (ndarray): Diffusivity field. If None, a uniform diffusivity of 1.0 is assumed.
-        rtol (float): Relative tolerance for the solver.
-        gpu (bool): If True, use GPU for computation.
-        verbose (bool): If True, print additional information during the solution process.
-
-    Returns:
-        result: An object containing the boolean image, axis, tortuosity, and
-            concentration.
-
-    Raises:
-        RuntimeError: If no percolating paths are found along the specified axis.
-    """
+def _tortuosity_fd_inprocess(im, axis, D, rtol, gpu, verbose):
+    """Run the Julia FD solver in the current process."""
     jl, taujl = _ensure_julia()
     axis_jl = jl.Symbol(["x", "y", "z"][axis])
     eps0 = taujl.Imaginator.phase_fraction(im)
     im = np.array(taujl.Imaginator.trim_nonpercolating_paths(im, axis=axis_jl))
     if jl.sum(im) == 0:
-        raise RuntimeError("No percolating paths along the given axis found in the image.")
+        raise RuntimeError(
+            "No percolating paths along the given axis found in the image."
+        )
     eps = taujl.Imaginator.phase_fraction(im)
     if eps[1] != eps0[1]:
-        # Trim the diffusivity field as well
         if D is not None:
             D[~im] = 0.0
-        logger.warning("The image has been trimmed to ensure percolation.")
     sim = taujl.TortuositySimulation(im, D=D, axis=axis_jl, gpu=gpu)
-    sol = taujl.solve(sim.prob, taujl.KrylovJL_CG(), verbose=verbose, reltol=rtol)
+    sol = taujl.solve(
+        sim.prob, taujl.KrylovJL_CG(), verbose=verbose, reltol=rtol
+    )
     c = taujl.vec_to_grid(sol.u, im)
     tau = taujl.tortuosity(c, axis=axis_jl, D=D)
     D_eff = taujl.effective_diffusivity(c, axis=axis_jl, D=D)
@@ -98,6 +86,134 @@ def tortuosity_fd(
         formation_factor=formation_factor,
         D=D,
     )
+
+
+# ── Persistent Julia worker (used when POROMICS_JULIA_SUBPROCESS=1) ──
+
+_julia_proc = None
+_julia_ctrl_w = None
+
+
+def _get_julia_worker():
+    """Return a running Julia worker subprocess, spawning one if needed.
+
+    Uses a dedicated pipe fd for the control channel because Julia's
+    runtime clobbers fd 0 (stdin) on initialization.
+    """
+    global _julia_proc, _julia_ctrl_w
+    if _julia_proc is not None and _julia_proc.poll() is None:
+        return _julia_proc, _julia_ctrl_w
+    r_fd, w_fd = os.pipe()
+    _julia_proc = subprocess.Popen(
+        [sys.executable, "-m", "poromics._julia_worker", str(r_fd)],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        pass_fds=(r_fd,),
+    )
+    os.close(r_fd)
+    _julia_ctrl_w = os.fdopen(w_fd, "w")
+    atexit.register(_shutdown_julia_worker)
+    return _julia_proc, _julia_ctrl_w
+
+
+def _shutdown_julia_worker():
+    """Gracefully terminate the Julia worker on interpreter exit."""
+    global _julia_proc, _julia_ctrl_w
+    if _julia_ctrl_w is not None:
+        try:
+            _julia_ctrl_w.close()
+        except OSError:
+            pass
+        _julia_ctrl_w = None
+    if _julia_proc is not None and _julia_proc.poll() is None:
+        _julia_proc.wait(timeout=5)
+    _julia_proc = None
+
+
+def _julia_call(payload):
+    """Send a request to the persistent Julia worker and return the response."""
+    proc, ctrl_w = _get_julia_worker()
+    with tempfile.NamedTemporaryFile(suffix=".pkl", delete=False) as f_in, \
+         tempfile.NamedTemporaryFile(suffix=".pkl", delete=False) as f_out:
+        in_path, out_path = f_in.name, f_out.name
+        pickle.dump(payload, f_in)
+    try:
+        ctrl_w.write(f"{in_path}\t{out_path}\n")
+        ctrl_w.flush()
+        ack = proc.stdout.readline()
+        if not ack:
+            stderr = proc.stderr.read().decode(errors="replace")
+            raise RuntimeError(f"Julia worker died:\n{stderr}")
+        with open(out_path, "rb") as f:
+            response = pickle.load(f)
+    finally:
+        os.unlink(in_path)
+        os.unlink(out_path)
+    if not response["ok"]:
+        exc_cls = {"RuntimeError": RuntimeError, "ImportError": ImportError}
+        cls = exc_cls.get(response["error_type"], RuntimeError)
+        raise cls(response["error_msg"])
+    return response["result"]
+
+
+# ── Public API ────────────────────────────────────────────────────────
+
+
+def tortuosity_fd(
+    im,
+    *,
+    axis: int,
+    D: np.ndarray = None,
+    rtol: float = 1e-5,
+    gpu: bool = False,
+    verbose: bool = False,
+) -> "TortuosityResult":
+    """Compute tortuosity via Julia FD solver.
+
+    By default (``POROMICS_JULIA_SUBPROCESS=1``), runs Julia in a
+    persistent subprocess to avoid LLVM symbol collisions with Taichi.
+    The worker stays alive so Julia's JIT cache is reused across calls.
+
+    Set ``POROMICS_JULIA_SUBPROCESS=0`` to run Julia in-process (faster
+    if Taichi is not used). An error is raised if Taichi was already
+    initialized in the same process.
+
+    Parameters
+    ----------
+    im : ndarray
+        The input image.
+    axis : int
+        The axis along which to compute tortuosity (0=x, 1=y, 2=z).
+    D : ndarray, optional
+        Diffusivity field. If None, uniform diffusivity of 1.0 is assumed.
+    rtol : float
+        Relative tolerance for the solver.
+    gpu : bool
+        If True, use GPU for computation.
+    verbose : bool
+        If True, print additional information during the solution process.
+
+    Returns
+    -------
+    result : TortuosityResult
+
+    Raises
+    ------
+    RuntimeError
+        If no percolating paths are found along the specified axis.
+    """
+    if not _JULIA_SUBPROCESS:
+        return _tortuosity_fd_inprocess(im, axis, D, rtol, gpu, verbose)
+    payload = {
+        "im": np.asarray(im),
+        "axis": axis,
+        "D": D,
+        "rtol": rtol,
+        "gpu": gpu,
+        "verbose": verbose,
+    }
+    return TortuosityResult(**_julia_call(payload))
 
 
 # ── Result classes ────────────────────────────────────────────────────
