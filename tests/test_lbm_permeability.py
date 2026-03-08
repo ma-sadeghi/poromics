@@ -1,8 +1,8 @@
 # Tests for LBM-based permeability solver.
 import numpy as np
 import pytest
-from poromics._lbm._flow_solver import solve_flow
-from poromics._permeability import permeability_lbm
+from poromics.simulation import TransientFlow
+from poromics import permeability_lbm
 
 
 def _make_cylinder(L, N, R):
@@ -81,7 +81,11 @@ def _local_dp_dx(density, solid, x_lo, x_hi):
 
 def _run_and_get_Q(solid, L, N, nu, n_steps=20000, tol=1e-4):
     """Run LBM, return (Q_lbm, dp_dx_local, pore_2d, velocity, density)."""
-    velocity, density = solve_flow(solid, axis=0, nu=nu, n_steps=n_steps, tol=tol)
+    im = (solid == 0)
+    solver = TransientFlow(im, axis=0, nu=nu, voxel_size=1.0)
+    solver.run(n_steps=n_steps, tol=tol)
+    velocity = solver._solver.get_velocity()
+    density = solver._solver.get_density()
     # Measure dp/dx in the interior (20%-80%) to avoid inlet/outlet BC artifacts.
     # The equilibrium pressure BC creates a sharp pressure jump at the
     # boundary faces; the fully-developed region has a uniform gradient.
@@ -247,7 +251,7 @@ class PermeabilityAPITest:
     def test_k_positive_finite(self):
         """Permeability of open space should be positive and finite."""
         im = np.ones((20, 20, 20), dtype=bool)
-        result = permeability_lbm(im, axis=0, n_steps=5000, tol=1e-3)
+        result = permeability_lbm(im, axis=0, voxel_size=1.0, n_steps=5000, tol=1e-3)
         assert result.k_lu > 0
         assert np.isfinite(result.k_lu)
         assert result.porosity == 1.0
@@ -256,18 +260,18 @@ class PermeabilityAPITest:
         """Fully solid image should raise RuntimeError."""
         im = np.zeros((10, 10, 10), dtype=bool)
         with pytest.raises(RuntimeError):
-            permeability_lbm(im, axis=0)
+            permeability_lbm(im, axis=0, voxel_size=1.0)
 
     def test_invalid_axis(self):
         """Invalid axis should raise ValueError."""
         im = np.ones((10, 10, 10), dtype=bool)
         with pytest.raises(ValueError):
-            permeability_lbm(im, axis=3)
+            permeability_lbm(im, axis=3, voxel_size=1.0)
 
     def test_physical_units(self):
-        """Physical units should be consistent: k_m2 = k_lu * dx_m^2."""
+        """Physical units should be consistent: k_m2 = k_lu * dx^2."""
         im = np.ones((20, 20, 20), dtype=bool)
-        dx_m = 1e-6
-        result = permeability_lbm(im, axis=0, n_steps=5000, tol=1e-3, dx_m=dx_m)
-        assert result.k_m2 == pytest.approx(result.k_lu * dx_m**2, rel=1e-10)
+        dx = 1e-6
+        result = permeability_lbm(im, axis=0, voxel_size=dx, n_steps=5000, tol=1e-3)
+        assert result.k_m2 == pytest.approx(result.k_lu * dx**2, rel=1e-10)
         assert result.k_mD == pytest.approx(result.k_m2 / 9.869233e-16, rel=1e-10)

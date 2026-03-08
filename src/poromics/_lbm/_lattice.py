@@ -1,5 +1,28 @@
 # Lattice Boltzmann lattice definitions (D3Q7 and D3Q19).
+from dataclasses import dataclass
+
 import numpy as np
+
+# Shared axis-to-face mapping
+axis_to_face = {0: ("x0", "x1"), 1: ("y0", "y1"), 2: ("z0", "z1")}
+
+
+@dataclass(frozen=True)
+class D3Q7Params:
+    """Internal lattice parameters for D3Q7 BGK diffusion."""
+
+    cs2: float = 0.25
+    tau: float = 1.5
+    D_lu: float = 0.25       # D_lu = (tau - 0.5) / 4
+
+
+@dataclass(frozen=True)
+class D3Q19Params:
+    """Internal lattice parameters for D3Q19 MRT flow."""
+
+    cs2: float = 1.0 / 3.0
+    tau: float = 1.0
+    nu_lu: float = 1.0 / 6.0  # nu_lu = (tau - 0.5) / 3
 
 
 # ── D3Q7 lattice (passive scalar diffusion) ───────────────────────────
