@@ -1,10 +1,15 @@
 # Poromics
 
-Poromics is a set of tools for rapid estimation of transport properties of 3D images of porous materials. It is designed to be fast and easy to use. Currently, it can predict the tortuosity factor of an image. The goal is to support more transport properties in the future such as permeability. Poromics is optionally GPU-accelerated, which can significantly speed up the calculations for large images (up to 100x speedup).
+Poromics estimates transport properties of 3D porous material images. It is GPU-accelerated and designed to be fast and easy to use.
+
+**Supported properties:**
+
+- **Tortuosity / effective diffusivity** — via Julia-based FD solver (`tortuosity_fd`) or Taichi-based LBM D3Q7 BGK solver (`tortuosity_lbm`)
+- **Absolute permeability** — via Taichi-based LBM D3Q19 MRT solver (`permeability_lbm`)
 
 ## Installation
 
-Poromics depends on the Julia package [Tortuosity.jl](https://github.com/ma-sadeghi/Tortuosity.jl/). However, it is not necessary to install Julia separately. The package will be installed automatically when you install `poromics`.
+The Julia-based FD solver depends on [Tortuosity.jl](https://github.com/ma-sadeghi/Tortuosity.jl/), which is installed automatically. The LBM solvers use [Taichi](https://www.taichi-lang.org/) with automatic GPU detection.
 
 > [!NOTE]
 > We highly recommend using `uv` instead of `pip` to install `poromics` (or any other Python package!) as it's extremely faster. It has lots of useful features, but for all practical purposes, it is a drop-in replacement for `pip`.
@@ -28,27 +33,54 @@ pip install poromics
 ## Basic Usage
 
 > [!NOTE]
-> The first time you import `poromics`, it will take a few minutes to install Julia and the required packages. This is a one-time setup.
+> The first time you call `tortuosity_fd`, it will take a few minutes to install Julia and the required packages. This is a one-time setup. The LBM solvers (`tortuosity_lbm`, `permeability_lbm`) use Taichi and do not require Julia.
+
+### Tortuosity (Julia FD solver)
 
 ```python
 import porespy as ps
 import poromics
 
-im = ps.generators.blobs(shape=[100, 100, 1], porosity=0.6)  # Test image
-result = poromics.tortuosity_fd(im, axis=1, rtol=1e-5, gpu=True)
-print(result)
+im = ps.generators.blobs(shape=[100, 100, 100], porosity=0.6)
+result = poromics.tortuosity_fd(im, axis=0, rtol=1e-5, gpu=True)
+print(result.tau, result.D_eff)
 ```
 
-The `Result` object is a simple container with the following attributes:
+### Tortuosity (LBM solver)
 
-- `im`: The tortuosity factor of the image.
-- `axis`: The axis along which the tortuosity was calculated.
-- `tau`: The tortuosity factor.
-- `c`: The concentration field.
+```python
+result = poromics.tortuosity_lbm(im, axis=0, D=1e-9, voxel_size=1e-6)
+print(result.tau, result.D_eff)
+```
+
+### Permeability (LBM solver)
+
+```python
+result = poromics.permeability_lbm(im, axis=0, nu=1e-6, voxel_size=1e-6)
+print(result.k_m2, result.k_mD)
+```
+
+### Result objects
+
+`TortuosityResult` attributes: `im`, `axis`, `porosity`, `tau`, `D_eff`, `c`, `formation_factor`, `D`.
+
+`PermeabilityResult` attributes: `im`, `axis`, `porosity`, `k_lu`, `k_m2`, `k_mD`, `u_darcy`, `u_pore`, `velocity`.
+
+### Simulation solvers
+
+For more control, use the solver classes directly:
+
+```python
+from poromics.simulation import TransientDiffusion, TransientFlow
+
+solver = TransientDiffusion(im, axis=0, D=1e-9, voxel_size=1e-6)
+solver.run(n_steps=100_000, tol=1e-2)
+print(solver.concentration.shape, solver.converged)
+```
 
 ## CLI
 
-> [!WARNING]  
+> [!WARNING]
 > The CLI is still in development and not yet functional.
 
 ```bash
@@ -57,7 +89,14 @@ poromics --help
 
 ## Roadmap
 
-- [ ] Speed up matrix assembly by direct assembly on GPU.
-- [ ] Create Julia sysimage files upon installation for faster startup.
-- [ ] Add more transport properties (e.g. permeability).
-- [ ] Add CLI support.
+**Done:**
+
+- [x] Tortuosity / effective diffusivity via Julia FD solver (`tortuosity_fd`)
+- [x] GPU-accelerated tortuosity via Taichi LBM D3Q7 BGK (`tortuosity_lbm`)
+- [x] GPU-accelerated permeability via Taichi LBM D3Q19 MRT (`permeability_lbm`)
+- [x] Julia/Taichi coexistence via subprocess isolation
+
+**Planned:**
+
+- [ ] Create Julia sysimage files upon installation for faster startup
+- [ ] Add CLI support
