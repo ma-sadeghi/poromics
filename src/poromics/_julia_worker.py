@@ -19,14 +19,16 @@ _taujl = None
 def _ensure_julia():
     """Initialize Julia and load Tortuosity.jl (once per process).
 
-    Redirects stdout to stderr during initialization so Julia's verbose
-    output doesn't pollute the stdout protocol channel used to signal
-    completion to the parent process.
+    Redirects stdout to /dev/null during initialization so Julia's
+    verbose output doesn't pollute the stdout protocol channel used
+    to signal completion to the parent process.
     """
     global _jl, _taujl
     if _jl is None:
         saved_stdout_fd = os.dup(1)
-        os.dup2(2, 1)
+        devnull_fd = os.open(os.devnull, os.O_WRONLY)
+        os.dup2(devnull_fd, 1)
+        os.close(devnull_fd)
         try:
             from poromics import julia_helpers
 
