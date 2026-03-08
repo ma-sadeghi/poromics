@@ -22,6 +22,19 @@ __all__ = [
     "PermeabilityResult",
 ]
 
+
+def _trim_nonpercolating(im, axis):
+    """Remove pore voxels that don't percolate between inlet/outlet faces.
+
+    Uses PoreSpy to identify and remove dead-end regions that don't
+    contribute to transport. Returns the trimmed boolean image.
+    """
+    import porespy as ps
+
+    inlets = ps.generators.faces(im.shape, inlet=axis)
+    outlets = ps.generators.faces(im.shape, outlet=axis)
+    return ps.filters.trim_nonpercolating_paths(im, inlets=inlets, outlets=outlets)
+
 _JULIA_SUBPROCESS = os.environ.get("POROMICS_JULIA_SUBPROCESS", "1") == "1"
 
 # ── In-process Julia (used when POROMICS_JULIA_SUBPROCESS=0) ─────────
@@ -56,10 +69,12 @@ def _ensure_julia():
 
 def _tortuosity_fd_inprocess(im, axis, D, rtol, gpu, verbose):
     """Run the Julia FD solver in the current process."""
+    if D is not None:
+        D = np.array(D, copy=True)
     jl, taujl = _ensure_julia()
     axis_jl = jl.Symbol(["x", "y", "z"][axis])
     eps0 = taujl.Imaginator.phase_fraction(im)
-    im = np.array(taujl.Imaginator.trim_nonpercolating_paths(im, axis=axis_jl))
+    im = np.asarray(taujl.Imaginator.trim_nonpercolating_paths(im, axis=axis_jl), dtype=bool)
     if jl.sum(im) == 0:
         raise RuntimeError("No percolating paths along the given axis found in the image.")
     eps = taujl.Imaginator.phase_fraction(im)
@@ -71,11 +86,10 @@ def _tortuosity_fd_inprocess(im, axis, D, rtol, gpu, verbose):
     c = taujl.vec_to_grid(sol.u, im)
     tau = taujl.tortuosity(c, axis=axis_jl, D=D)
     D_eff = taujl.effective_diffusivity(c, axis=axis_jl, D=D)
-    pore_mask = np.asarray(im, dtype=bool)
-    porosity = float(pore_mask.sum()) / pore_mask.size
+    porosity = float(im.sum()) / im.size
     formation_factor = 1.0 / D_eff if D_eff > 0 else float("inf")
     return TortuosityResult(
-        im=np.asarray(im, dtype=bool),
+        im=im,
         axis=axis,
         porosity=porosity,
         tau=tau,
@@ -167,7 +181,7 @@ def tortuosity_fd(
     D: np.ndarray | None = None,
     rtol: float = 1e-5,
     gpu: bool = False,
-    verbose: bool = False,
+    verbose: bool = True,
 ) -> "TortuosityResult":
     """Compute tortuosity via Julia FD solver.
 
@@ -333,6 +347,7 @@ def tortuosity_lbm(
     tol: float = 1e-2,
     n_steps: int = 100_000,
     sparse: bool = False,
+    verbose: bool = True,
 ) -> TortuosityResult:
     """Compute tortuosity and effective diffusivity using LBM (D3Q7 BGK).
 
@@ -356,17 +371,22 @@ def tortuosity_lbm(
         Maximum number of LBM iterations.
     sparse : bool
         Use Taichi sparse storage.
+    verbose : bool
+        Show a rich progress bar. Default False.
 
     Returns
     -------
     result : TortuosityResult
     """
+    im = np.atleast_3d(np.asarray(im, dtype=bool))
+    im = _trim_nonpercolating(im, axis)
+    if im.sum() == 0:
+        raise RuntimeError("No percolating paths along the given axis found in the image.")
     solver = TransientDiffusion(im, axis=axis, D=D, voxel_size=voxel_size, sparse=sparse)
-    solver.run(n_steps=n_steps, tol=tol)
+    solver.run(n_steps=n_steps, tol=tol, verbose=verbose)
     c = solver.concentration
 
-    pore_mask = np.asarray(im, dtype=bool)
-    porosity = float(pore_mask.sum()) / pore_mask.size
+    porosity = float(im.sum()) / im.size
     L = im.shape[axis]
     J_mean = solver.flux(axis)
     D_eff_lu = J_mean * L  # delta_c = 1.0
@@ -378,7 +398,7 @@ def tortuosity_lbm(
     tau = formation_factor * porosity
 
     return TortuosityResult(
-        im=np.asarray(im, dtype=bool),
+        im=im,
         axis=axis,
         porosity=porosity,
         tau=tau,
@@ -398,6 +418,7 @@ def permeability_lbm(
     tol: float = 1e-3,
     n_steps: int = 100_000,
     sparse: bool = False,
+    verbose: bool = True,
 ) -> PermeabilityResult:
     """Compute absolute permeability using LBM (D3Q19 MRT).
 
@@ -422,18 +443,23 @@ def permeability_lbm(
         Maximum number of LBM iterations.
     sparse : bool
         Use Taichi sparse storage.
+    verbose : bool
+        Show a rich progress bar. Default False.
 
     Returns
     -------
     result : PermeabilityResult
     """
+    im = np.atleast_3d(np.asarray(im, dtype=bool))
+    im = _trim_nonpercolating(im, axis)
+    if im.sum() == 0:
+        raise RuntimeError("No percolating paths along the given axis found in the image.")
     solver = TransientFlow(im, axis=axis, nu=nu, voxel_size=voxel_size, sparse=sparse)
-    solver.run(n_steps=n_steps, tol=tol)
+    solver.run(n_steps=n_steps, tol=tol, verbose=verbose)
 
     # Work in lattice units for Darcy's law, then convert
     v_lu = solver._solver.get_velocity()
-    solid = (np.asarray(im) == 0).astype(np.int8)
-    pore_mask = solid == 0
+    pore_mask = im
     porosity = float(pore_mask.sum()) / pore_mask.size
     L = im.shape[axis]
 
@@ -452,7 +478,7 @@ def permeability_lbm(
     u_pore = u_pore_lu * lu_to_phys
 
     return PermeabilityResult(
-        im=np.asarray(im, dtype=bool),
+        im=im,
         axis=axis,
         porosity=porosity,
         k_lu=k_lu,

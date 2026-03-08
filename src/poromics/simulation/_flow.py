@@ -4,6 +4,7 @@ import time
 import numpy as np
 from loguru import logger
 
+from ._progress import make_progress, update_progress
 from .._lbm._lattice import axis_to_face, D3Q19Params
 
 _d3q19 = D3Q19Params()
@@ -47,7 +48,12 @@ class TransientFlow:
                  sparse=False):  # fmt: skip
         if axis not in (0, 1, 2):
             raise ValueError(f"axis must be 0, 1, or 2, got {axis}")
-        solid = (np.asarray(im) == 0).astype(np.int8)
+        if nu <= 0:
+            raise ValueError(f"nu must be > 0, got {nu}")
+        if voxel_size <= 0:
+            raise ValueError(f"voxel_size must be > 0, got {voxel_size}")
+        im_arr = np.atleast_3d(np.asarray(im))
+        solid = (im_arr == 0).astype(np.int8)
         if solid.sum() == solid.size:
             raise RuntimeError("Image has no pore voxels.")
 
@@ -72,7 +78,8 @@ class TransientFlow:
 
     # ── Execution ─────────────────────────────────────────────────────
 
-    def run(self, n_steps=100_000, tol=1e-3, log_every=500):
+    def run(self, n_steps=100_000, tol=1e-3, log_every=500,
+            verbose=False):  # fmt: skip
         """Run the solver to steady state.
 
         Parameters
@@ -84,18 +91,24 @@ class TransientFlow:
             None disables early stopping.
         log_every : int
             Log convergence every this many steps.
+        verbose : bool
+            Show a rich progress bar. Default False.
         """
         self._converged = False
         t_start = time.time()
-        v_prev = None
-        for step in range(n_steps + 1):
-            self._solver.step()
-            self._n_iterations += 1
-            if step % log_every != 0:
-                continue
-            elapsed = time.time() - t_start
-            v_now = self._solver.get_velocity()
-            if v_prev is not None:
+        v_prev = self._solver.get_velocity()
+        progress, task = None, None
+        if verbose:
+            progress, task = make_progress(n_steps, tol, "Flow")
+            progress.start()
+        try:
+            for step in range(n_steps + 1):
+                self._solver.step()
+                self._n_iterations += 1
+                if step % log_every != 0:
+                    continue
+                elapsed = time.time() - t_start
+                v_now = self._solver.get_velocity()
                 v_total = np.sum(np.abs(v_now))
                 v_change = np.sum(np.abs(v_now - v_prev))
                 ratio = v_change / v_total if v_total > 0 else 0.0
@@ -105,13 +118,21 @@ class TransientFlow:
                     f"delta={ratio:.2e}  "
                     f"elapsed={elapsed:.1f}s"
                 )
+                if progress is not None:
+                    update_progress(progress, task, step, ratio, tol, n_steps)
                 if tol is not None and v_total > 0 and ratio < tol:
                     logger.info(
-                        f"Converged at step {step} (delta|v|/|v|={ratio:.2e} < tol={tol:.2e})"
+                        f"Converged at step {step} "
+                        f"(delta|v|/|v|={ratio:.2e} < tol={tol:.2e})"
                     )
+                    if progress is not None:
+                        progress.update(task, completed=100, status="converged")
                     self._converged = True
                     return
-            v_prev = v_now
+                v_prev = v_now
+        finally:
+            if progress is not None:
+                progress.stop()
 
     def step(self):
         """Advance by one time step."""
@@ -150,7 +171,10 @@ class TransientFlow:
     def pressure(self):
         """Gauge pressure field in Pa, shape (nx, ny, nz).
 
-        Pressure is relative to the outlet face density.
+        Pressure is relative to the outlet face density. Uses the LBM
+        equation of state ``p = rho * cs²`` with the lattice reference
+        density ``rho_0 = 1``, so no additional fluid density parameter
+        is needed.
         """
         rho_lu = self._solver.get_density()
         scale = _d3q19.cs2 * (self._voxel_size / self._dt) ** 2

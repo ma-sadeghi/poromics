@@ -36,7 +36,7 @@ def _run_tortuosity_fd(im, axis, D, rtol, gpu, verbose):
 
     axis_jl = jl.Symbol(["x", "y", "z"][axis])
     eps0 = taujl.Imaginator.phase_fraction(im)
-    im = np.array(taujl.Imaginator.trim_nonpercolating_paths(im, axis=axis_jl))
+    im = np.asarray(taujl.Imaginator.trim_nonpercolating_paths(im, axis=axis_jl), dtype=bool)
     if jl.sum(im) == 0:
         raise RuntimeError("No percolating paths along the given axis found in the image.")
     eps = taujl.Imaginator.phase_fraction(im)

@@ -7,16 +7,10 @@ from typing import Any
 import juliapkg
 from juliapkg.deps import can_skip_resolve
 from juliapkg.find_julia import find_julia
-from loguru import _defaults, logger
+from loguru import logger
 from tqdm.auto import tqdm
 
 from .utils import suppress_output
-
-# Remove milliseconds from loguru format for cleaner output
-logger.remove()
-logger_fmt = _defaults.LOGURU_FORMAT
-logger_fmt = logger_fmt.replace(".SSS", "")
-logger.add(lambda msg: tqdm.write(msg, end=""), format=logger_fmt, colorize=True)
 
 
 def install_julia(quiet: bool = False) -> None:

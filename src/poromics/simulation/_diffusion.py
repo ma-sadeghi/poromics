@@ -4,6 +4,7 @@ import time
 import numpy as np
 from loguru import logger
 
+from ._progress import make_progress, update_progress
 from .._lbm._lattice import axis_to_face, D3Q7Params
 
 _d3q7 = D3Q7Params()
@@ -46,7 +47,12 @@ class TransientDiffusion:
                  sparse=False):  # fmt: skip
         if axis not in (0, 1, 2):
             raise ValueError(f"axis must be 0, 1, or 2, got {axis}")
-        solid = (np.asarray(im) == 0).astype(np.int8)
+        if D <= 0:
+            raise ValueError(f"D must be > 0, got {D}")
+        if voxel_size <= 0:
+            raise ValueError(f"voxel_size must be > 0, got {voxel_size}")
+        im_arr = np.atleast_3d(np.asarray(im))
+        solid = (im_arr == 0).astype(np.int8)
         if solid.sum() == solid.size:
             raise RuntimeError("Image has no pore voxels.")
 
@@ -69,7 +75,8 @@ class TransientDiffusion:
 
     # ── Execution ─────────────────────────────────────────────────────
 
-    def run(self, n_steps=100_000, tol=1e-2, log_every=500):
+    def run(self, n_steps=100_000, tol=1e-2, log_every=500,
+            verbose=False):  # fmt: skip
         """Run the solver to steady state.
 
         Parameters
@@ -81,18 +88,24 @@ class TransientDiffusion:
             None disables early stopping.
         log_every : int
             Log convergence every this many steps.
+        verbose : bool
+            Show a rich progress bar. Default False.
         """
         self._converged = False
         t_start = time.time()
-        c_prev = None
-        for step in range(n_steps + 1):
-            self._solver.step()
-            self._n_iterations += 1
-            if step % log_every != 0:
-                continue
-            elapsed = time.time() - t_start
-            c_now = self._solver.get_concentration()
-            if c_prev is not None:
+        c_prev = self._solver.get_concentration()
+        progress, task = None, None
+        if verbose:
+            progress, task = make_progress(n_steps, tol, "Diffusion")
+            progress.start()
+        try:
+            for step in range(n_steps + 1):
+                self._solver.step()
+                self._n_iterations += 1
+                if step % log_every != 0:
+                    continue
+                elapsed = time.time() - t_start
+                c_now = self._solver.get_concentration()
                 c_total = np.sum(np.abs(c_now))
                 c_change = np.sum(np.abs(c_now - c_prev))
                 ratio = c_change / c_total if c_total > 0 else 0.0
@@ -102,13 +115,21 @@ class TransientDiffusion:
                     f"delta={ratio:.2e}  "
                     f"elapsed={elapsed:.1f}s"
                 )
+                if progress is not None:
+                    update_progress(progress, task, step, ratio, tol, n_steps)
                 if tol is not None and c_total > 0 and ratio < tol:
                     logger.info(
-                        f"Converged at step {step} (delta|c|/|c|={ratio:.2e} < tol={tol:.2e})"
+                        f"Converged at step {step} "
+                        f"(delta|c|/|c|={ratio:.2e} < tol={tol:.2e})"
                     )
+                    if progress is not None:
+                        progress.update(task, completed=100, status="converged")
                     self._converged = True
                     return
-            c_prev = c_now
+                c_prev = c_now
+        finally:
+            if progress is not None:
+                progress.stop()
 
     def step(self):
         """Advance by one time step."""
@@ -139,14 +160,20 @@ class TransientDiffusion:
 
     @property
     def concentration(self):
-        """Concentration field, shape (nx, ny, nz). Dimensionless."""
+        """Concentration field, shape (nx, ny, nz).
+
+        Units match ``c_in`` and ``c_out`` (default: dimensionless).
+        """
         return self._solver.get_concentration()
 
     def flux(self, axis=None):
-        """Mean diffusive flux through the domain midplane.
+        """Mean diffusive flux through the domain midplane (lattice units).
 
         Uses Fick's law on the concentration gradient rather than
         distribution moments (which are unreliable at Dirichlet faces).
+        Returns ``-D_lu * dc/dx_lu`` evaluated at the midplane, which
+        equals the normalized effective diffusivity D_eff/D_0 for
+        unit concentration drop across the domain.
 
         Parameters
         ----------
