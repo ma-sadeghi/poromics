@@ -19,7 +19,7 @@ endif
 
 PACKAGE_CHECK := $(PYTHON_PACKAGE_PATH)/build
 
-.PHONY: all install venv pip pre-commit chores tests build publish checks fixes
+.PHONY: all install venv pip pre-commit chores tests build publish checks fixes run-notebooks
 
 install: venv
 	uv sync --all-extras
@@ -84,6 +84,11 @@ build: $(PACKAGE_CHECK)
 
 publish: $(PACKAGE_CHECK)
 	uv run hatch publish
+
+NOTEBOOKS := $(wildcard docs/examples/*.ipynb)
+
+run-notebooks:
+	uv run jupyter nbconvert --to notebook --execute --inplace $(NOTEBOOKS)
 
 deploy-docs:
 	uv run mkdocs gh-deploy --force
