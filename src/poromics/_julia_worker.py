@@ -17,27 +17,14 @@ _taujl = None
 
 
 def _ensure_julia():
-    """Initialize Julia and load Tortuosity.jl (once per process).
-
-    Redirects stdout to /dev/null during initialization so Julia's
-    verbose output doesn't pollute the stdout protocol channel used
-    to signal completion to the parent process.
-    """
+    """Initialize Julia and load Tortuosity.jl (once per process)."""
     global _jl, _taujl
     if _jl is None:
-        saved_stdout_fd = os.dup(1)
-        devnull_fd = os.open(os.devnull, os.O_WRONLY)
-        os.dup2(devnull_fd, 1)
-        os.close(devnull_fd)
-        try:
-            from poromics import julia_helpers
+        from poromics import julia_helpers
 
-            julia_helpers.ensure_julia_deps_ready(quiet=False)
-            _jl = julia_helpers.init_julia(quiet=False)
-            _taujl = julia_helpers.import_backend(_jl)
-        finally:
-            os.dup2(saved_stdout_fd, 1)
-            os.close(saved_stdout_fd)
+        julia_helpers.ensure_julia_deps_ready(quiet=False)
+        _jl = julia_helpers.init_julia(quiet=False)
+        _taujl = julia_helpers.import_backend(_jl)
     return _jl, _taujl
 
 
@@ -79,9 +66,23 @@ def _run_tortuosity_fd(im, axis, D, rtol, gpu, verbose):
 
 
 def main():
-    """Run a persistent request loop, reading file paths from a pipe fd."""
+    """Run a persistent request loop, reading file paths from a pipe fd.
+
+    Redirects fd 1 (stdout) to /dev/null at startup so Julia's verbose
+    output never pollutes the protocol channel. A dedicated file object
+    wrapping the original stdout pipe fd is used for "done" signals.
+    """
     ctrl_fd = int(sys.argv[1])
     ctrl_in = os.fdopen(ctrl_fd, "r")
+
+    # Save the real stdout pipe, then redirect fd 1 to /dev/null so
+    # Julia/juliacall output can never reach the parent's readline().
+    signal_fd = os.dup(1)
+    devnull_fd = os.open(os.devnull, os.O_WRONLY)
+    os.dup2(devnull_fd, 1)
+    os.close(devnull_fd)
+    signal_out = os.fdopen(signal_fd, "w")
+
     while True:
         line = ctrl_in.readline()
         if not line:
@@ -101,8 +102,8 @@ def main():
         with open(out_path, "wb") as f:
             pickle.dump(response, f)
         # Signal completion — parent reads this line to know the result is ready
-        sys.stdout.write("done\n")
-        sys.stdout.flush()
+        signal_out.write("done\n")
+        signal_out.flush()
 
 
 if __name__ == "__main__":
