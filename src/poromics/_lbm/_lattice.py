@@ -13,7 +13,7 @@ class D3Q7Params:
 
     cs2: float = 0.25
     tau: float = 1.5
-    D_lu: float = 0.25       # D_lu = (tau - 0.5) / 4
+    D_lu: float = 0.25  # D_lu = (tau - 0.5) / 4
 
 
 @dataclass(frozen=True)

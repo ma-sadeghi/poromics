@@ -81,7 +81,7 @@ def _local_dp_dx(density, solid, x_lo, x_hi):
 
 def _run_and_get_Q(solid, L, N, nu, n_steps=20000, tol=1e-4):
     """Run LBM, return (Q_lbm, dp_dx_local, pore_2d, velocity, density)."""
-    im = (solid == 0)
+    im = solid == 0
     solver = TransientFlow(im, axis=0, nu=nu, voxel_size=1.0)
     solver.run(n_steps=n_steps, tol=tol)
     velocity = solver._solver.get_velocity()

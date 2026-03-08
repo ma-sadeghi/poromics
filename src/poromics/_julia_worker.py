@@ -21,6 +21,7 @@ def _ensure_julia():
     global _jl, _taujl
     if _jl is None:
         from poromics import julia_helpers
+
         julia_helpers.ensure_julia_deps_ready(quiet=False)
         _jl = julia_helpers.init_julia(quiet=False)
         _taujl = julia_helpers.import_backend(_jl)
@@ -30,15 +31,14 @@ def _ensure_julia():
 def _run_tortuosity_fd(im, axis, D, rtol, gpu, verbose):
     """Execute the Julia-backed tortuosity solver and return a plain dict."""
     import numpy as np
+
     jl, taujl = _ensure_julia()
 
     axis_jl = jl.Symbol(["x", "y", "z"][axis])
     eps0 = taujl.Imaginator.phase_fraction(im)
     im = np.array(taujl.Imaginator.trim_nonpercolating_paths(im, axis=axis_jl))
     if jl.sum(im) == 0:
-        raise RuntimeError(
-            "No percolating paths along the given axis found in the image."
-        )
+        raise RuntimeError("No percolating paths along the given axis found in the image.")
     eps = taujl.Imaginator.phase_fraction(im)
     if eps[1] != eps0[1]:
         if D is not None:
@@ -97,5 +97,6 @@ if __name__ == "__main__":
         main()
     except Exception:
         import traceback
+
         traceback.print_exc(file=sys.stderr)
         sys.exit(1)

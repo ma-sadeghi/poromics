@@ -39,6 +39,7 @@ def _ensure_julia():
     if _jl is not None:
         return _jl, _taujl
     from poromics._lbm._taichi_helpers import _ti
+
     if _ti is not None:
         raise RuntimeError(
             "Cannot initialize Julia in the same process as Taichi "
@@ -46,6 +47,7 @@ def _ensure_julia():
             "any LBM function, or set POROMICS_JULIA_SUBPROCESS=1."
         )
     from poromics import julia_helpers
+
     julia_helpers.ensure_julia_deps_ready(quiet=False)
     _jl = julia_helpers.init_julia(quiet=False)
     _taujl = julia_helpers.import_backend(_jl)
@@ -59,17 +61,13 @@ def _tortuosity_fd_inprocess(im, axis, D, rtol, gpu, verbose):
     eps0 = taujl.Imaginator.phase_fraction(im)
     im = np.array(taujl.Imaginator.trim_nonpercolating_paths(im, axis=axis_jl))
     if jl.sum(im) == 0:
-        raise RuntimeError(
-            "No percolating paths along the given axis found in the image."
-        )
+        raise RuntimeError("No percolating paths along the given axis found in the image.")
     eps = taujl.Imaginator.phase_fraction(im)
     if eps[1] != eps0[1]:
         if D is not None:
             D[~im] = 0.0
     sim = taujl.TortuositySimulation(im, D=D, axis=axis_jl, gpu=gpu)
-    sol = taujl.solve(
-        sim.prob, taujl.KrylovJL_CG(), verbose=verbose, reltol=rtol
-    )
+    sol = taujl.solve(sim.prob, taujl.KrylovJL_CG(), verbose=verbose, reltol=rtol)
     c = taujl.vec_to_grid(sol.u, im)
     tau = taujl.tortuosity(c, axis=axis_jl, D=D)
     D_eff = taujl.effective_diffusivity(c, axis=axis_jl, D=D)
@@ -134,8 +132,10 @@ def _shutdown_julia_worker():
 def _julia_call(payload):
     """Send a request to the persistent Julia worker and return the response."""
     proc, ctrl_w = _get_julia_worker()
-    with tempfile.NamedTemporaryFile(suffix=".pkl", delete=False) as f_in, \
-         tempfile.NamedTemporaryFile(suffix=".pkl", delete=False) as f_out:
+    with (
+        tempfile.NamedTemporaryFile(suffix=".pkl", delete=False) as f_in,
+        tempfile.NamedTemporaryFile(suffix=".pkl", delete=False) as f_out,
+    ):
         in_path, out_path = f_in.name, f_out.name
         pickle.dump(payload, f_in)
     try:
@@ -317,8 +317,7 @@ class PermeabilityResult(SimulationResult):
 
     def __repr__(self):
         return (
-            f"PermeabilityResult(k_m2={self.k_m2:.6e}, k_mD={self.k_mD:.4f}, "
-            f"axis={self.axis})"
+            f"PermeabilityResult(k_m2={self.k_m2:.6e}, k_mD={self.k_mD:.4f}, axis={self.axis})"
         )
 
 
@@ -446,7 +445,7 @@ def permeability_lbm(
 
     # Convert to physical units
     dx = voxel_size
-    k_m2 = k_lu * dx ** 2
+    k_m2 = k_lu * dx**2
     k_mD = k_m2 / _MD_CONVERSION
     lu_to_phys = dx / solver.dt
     u_darcy = u_darcy_lu * lu_to_phys

@@ -53,7 +53,7 @@ class TransientDiffusion:
         self._axis = axis
         self._D = D
         self._voxel_size = float(voxel_size)
-        self._dt = _d3q7.D_lu * voxel_size ** 2 / D
+        self._dt = _d3q7.D_lu * voxel_size**2 / D
         self._n_iterations = 0
         self._converged = False
 
@@ -104,8 +104,7 @@ class TransientDiffusion:
                 )
                 if tol is not None and c_total > 0 and ratio < tol:
                     logger.info(
-                        f"Converged at step {step} "
-                        f"(delta|c|/|c|={ratio:.2e} < tol={tol:.2e})"
+                        f"Converged at step {step} (delta|c|/|c|={ratio:.2e} < tol={tol:.2e})"
                     )
                     self._converged = True
                     return

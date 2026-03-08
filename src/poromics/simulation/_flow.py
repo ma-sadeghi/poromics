@@ -56,7 +56,7 @@ class TransientFlow:
         self._voxel_size = float(voxel_size)
         self._rho_in = rho_in
         self._rho_out = rho_out
-        self._dt = _d3q19.nu_lu * voxel_size ** 2 / nu
+        self._dt = _d3q19.nu_lu * voxel_size**2 / nu
         self._n_iterations = 0
         self._converged = False
 
@@ -107,8 +107,7 @@ class TransientFlow:
                 )
                 if tol is not None and v_total > 0 and ratio < tol:
                     logger.info(
-                        f"Converged at step {step} "
-                        f"(delta|v|/|v|={ratio:.2e} < tol={tol:.2e})"
+                        f"Converged at step {step} (delta|v|/|v|={ratio:.2e} < tol={tol:.2e})"
                     )
                     self._converged = True
                     return
