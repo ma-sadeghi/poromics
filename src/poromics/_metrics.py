@@ -164,7 +164,7 @@ def tortuosity_fd(
     im,
     *,
     axis: int,
-    D: np.ndarray = None,
+    D: np.ndarray | None = None,
     rtol: float = 1e-5,
     gpu: bool = False,
     verbose: bool = False,

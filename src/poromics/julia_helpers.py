@@ -1,5 +1,8 @@
+from __future__ import annotations
+
 import shutil
 from pathlib import Path
+from typing import Any
 
 import juliapkg
 from juliapkg.deps import can_skip_resolve
@@ -48,7 +51,7 @@ def install_backend(quiet: bool = False) -> None:
         juliapkg.resolve()
 
 
-def init_julia(quiet: bool = False) -> "juliacall.ModuleValue":
+def init_julia(quiet: bool = False) -> Any:
     """Initializes Julia and returns the Main module.
 
     Args:
@@ -73,8 +76,8 @@ def init_julia(quiet: bool = False) -> "juliacall.ModuleValue":
 
 
 def import_package(
-    package_name: str, Main: "juliacall.ModuleValue", error: bool = False
-) -> "juliacall.ModuleValue":
+    package_name: str, Main: Any, error: bool = False
+) -> Any:
     """Imports a package in Julia and returns the module.
 
     Args:
@@ -99,7 +102,7 @@ def import_package(
     return None
 
 
-def import_backend(Main: "juliacall.ModuleValue" = None) -> "juliacall.ModuleValue":
+def import_backend(Main: Any = None) -> Any:
     """Imports Tortuosity.jl package from Julia.
 
     Args:
@@ -144,7 +147,7 @@ def is_julia_installed(error: bool = False) -> bool:
     return False
 
 
-def is_backend_installed(Main: "juliacall.ModuleValue" = None, error: bool = False) -> bool:
+def is_backend_installed(Main: Any = None, error: bool = False) -> bool:
     """Checks if Tortuosity.jl is installed.
 
     Args:
