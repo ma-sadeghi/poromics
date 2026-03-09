@@ -84,21 +84,24 @@ extra_javascript:
 docs_dir: docs
 
 nav:
-  - Home: "index.md"
+  - Home:
+    - Overview: "index.md"
+    - Roadmap: "roadmap.md"
+    - Acknowledgments: "acknowledgments.md"
+    - Contributing: "contributing.md"
   - Getting Started:
     - Installation: "install.md"
     - Quick Start: "getting-started.md"
   - Solvers:
     - Overview: "solvers/index.md"
-    - Tortuosity (FD): "solvers/tortuosity-fd.md"
+    - Tortuosity (FDM): "solvers/tortuosity-fd.md"
     - Tortuosity (LBM): "solvers/tortuosity-lbm.md"
     - Permeability (LBM): "solvers/permeability-lbm.md"
   - Examples:
     - Overview: "examples/index.md"
-    - Diffusion (FD): "examples/diffusion-fd.ipynb"
-    - Diffusion (LBM): "examples/diffusion-lbm.ipynb"
-    - Flow (LBM): "examples/flow-lbm.ipynb"
+    - Tortuosity (FDM): "examples/diffusion-fd.ipynb"
+    - Tortuosity (LBM): "examples/diffusion-lbm.ipynb"
+    - Permeability (LBM): "examples/flow-lbm.ipynb"
   - Reference:
     - API: "reference.md"
     - Simulation API: "simulation.md"
-    - Contributing: "contributing.md"

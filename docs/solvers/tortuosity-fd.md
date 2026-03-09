@@ -1,4 +1,4 @@
-# Tortuosity (FD solver)
+# Tortuosity (FDM solver)
 
 ## Background
 
@@ -28,7 +28,6 @@ This solver is implemented in Julia via [Tortuosity.jl](https://github.com/ma-sa
 # mkdocs: hideoutput
 import poromics
 import porespy as ps
-import matplotlib.pyplot as plt
 
 im = ps.generators.blobs(shape=[100, 100, 1], porosity=0.6, blobiness=0.5, seed=42)
 result = poromics.tortuosity_fd(im, axis=1, rtol=1e-5, gpu=False)
@@ -82,9 +81,5 @@ result = poromics.tortuosity_fd(im, axis=1, D=D, rtol=1e-5)
 ```python
 # mkdocs: render
 # mkdocs: hidecode
-fig, ax = plt.subplots()
-cax = ax.imshow(result.c[:, :, 0], cmap="viridis", interpolation="nearest")
-ax.set_title("Concentration Field")
-cbar = fig.colorbar(cax, ax=ax, fraction=0.046, pad=0.04)
-cbar.set_label("c")
+result.plot_concentration(z=0)
 ```

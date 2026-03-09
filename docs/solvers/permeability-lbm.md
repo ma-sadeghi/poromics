@@ -24,8 +24,6 @@ The solver accepts physical SI units for viscosity and voxel size; lattice param
 # mkdocs: hideoutput
 import poromics
 import porespy as ps
-import matplotlib.pyplot as plt
-import numpy as np
 
 im = ps.generators.blobs(shape=[100, 100, 1], porosity=0.6, blobiness=0.5, seed=42)
 result = poromics.permeability_lbm(im, axis=1, nu=1e-6, voxel_size=1e-6)
@@ -67,15 +65,5 @@ The velocity field can be visualized as a streamline plot. For a quasi-2D image,
 ```python
 # mkdocs: render
 # mkdocs: hidecode
-v = result.velocity[:, :, 0, :]
-speed = np.sqrt(v[:, :, 0]**2 + v[:, :, 1]**2)
-
-fig, ax = plt.subplots()
-ax.imshow(im[:, :, 0], cmap="gray", interpolation="nearest", alpha=0.3)
-nx, ny = im.shape[0], im.shape[1]
-X, Y = np.meshgrid(np.arange(ny), np.arange(nx))
-lw = 3 * speed / speed.max()
-ax.streamplot(X, Y, v[:, :, 1], v[:, :, 0], color=speed,
-              cmap="viridis", density=2, linewidth=lw)
-ax.set_title("Velocity Streamlines")
+result.plot_velocity(z=0)
 ```
