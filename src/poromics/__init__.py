@@ -4,7 +4,7 @@ from loguru import logger
 logger.remove()
 logger.add(
     lambda msg: __import__("sys").stderr.write(msg),
-    format="{time:YYYY-MM-DD HH:mm:ss.SS} | {level:<8} | {name}:{function}:{line} - {message}",
+    format="{time:HH:mm:ss} | <level>{level:<8}</level> | {name}:{function}:{line} - {message}",
     colorize=True,
     level="WARNING",
 )

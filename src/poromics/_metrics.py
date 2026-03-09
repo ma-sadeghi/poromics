@@ -6,6 +6,7 @@ import sys
 import tempfile
 
 import numpy as np
+from loguru import logger
 
 from poromics._lbm._lattice import D3Q7Params, D3Q19Params
 from poromics.simulation import TransientDiffusion, TransientFlow
@@ -69,18 +70,8 @@ def _ensure_julia():
 
 def _tortuosity_fd_inprocess(im, axis, D, rtol, gpu, verbose):
     """Run the Julia FD solver in the current process."""
-    if D is not None:
-        D = np.array(D, copy=True)
     jl, taujl = _ensure_julia()
     axis_jl = jl.Symbol(["x", "y", "z"][axis])
-    eps0 = taujl.Imaginator.phase_fraction(im)
-    im = np.asarray(taujl.Imaginator.trim_nonpercolating_paths(im, axis=axis_jl), dtype=bool)
-    if jl.sum(im) == 0:
-        raise RuntimeError("No percolating paths along the given axis found in the image.")
-    eps = taujl.Imaginator.phase_fraction(im)
-    if eps[1] != eps0[1]:
-        if D is not None:
-            D[~im] = 0.0
     sim = taujl.TortuositySimulation(im, D=D, axis=axis_jl, gpu=gpu)
     sol = taujl.solve(sim.prob, taujl.KrylovJL_CG(), verbose=verbose, reltol=rtol)
     c = taujl.vec_to_grid(sol.u, im)
@@ -217,10 +208,21 @@ def tortuosity_fd(
     RuntimeError
         If no percolating paths are found along the specified axis.
     """
+    im = np.atleast_3d(np.asarray(im, dtype=bool))
+    n_pore_before = int(im.sum())
+    im = _trim_nonpercolating(im, axis)
+    if im.sum() == 0:
+        raise RuntimeError("No percolating paths along the given axis found in the image.")
+    n_removed = n_pore_before - int(im.sum())
+    if n_removed > 0:
+        logger.warning(f"Trimmed {n_removed} non-percolating pore voxels from the image.")
+        if D is not None:
+            D = np.array(D, copy=True)
+            D[~im] = 0.0
     if not _JULIA_SUBPROCESS:
         return _tortuosity_fd_inprocess(im, axis, D, rtol, gpu, verbose)
     payload = {
-        "im": np.asarray(im),
+        "im": im,
         "axis": axis,
         "D": D,
         "rtol": rtol,
@@ -286,9 +288,71 @@ class TortuosityResult(SimulationResult):
         self.D = D
 
     def __repr__(self):
-        return (
-            f"TortuosityResult(tau={self.tau:.4f}, D_eff={self.D_eff:.6f}, axis={self.axis})"
-        )
+        lines = [
+            "TortuosityResult:",
+            f"  axis       = {self.axis}",
+            f"  porosity   = {self.porosity:.4f}",
+            f"  tau        = {self.tau:.4f}",
+            f"  D_eff/D    = {self.D_eff:.6f}",
+            f"  F          = {self.formation_factor:.4f}",
+        ]
+        return "\n".join(lines)
+
+    def plot_concentration(self, z=None, ax=None):
+        """Plot concentration field on a 2D slice.
+
+        Parameters
+        ----------
+        z : int or None
+            Slice index along the third axis. Defaults to nz // 2.
+        ax : matplotlib.axes.Axes or None
+            If provided, plot concentration only on this axes.
+            If None, create a side-by-side figure (pore structure +
+            concentration).
+
+        Returns
+        -------
+        fig : matplotlib.figure.Figure
+        axes : ndarray of Axes (if ax is None) or Axes
+        """
+        import matplotlib.pyplot as plt
+
+        im = np.atleast_3d(self.im)
+        c = np.atleast_3d(self.c)
+        if z is None:
+            z = im.shape[2] // 2
+
+        c_slice = c[:, :, z].astype(float)
+        c_slice[~im[:, :, z]] = np.nan
+
+        import matplotlib.ticker as ticker
+
+        if ax is not None:
+            mappable = ax.imshow(c_slice, cmap="viridis", interpolation="nearest")
+            ax.set_title("Concentration field")
+            cb = ax.figure.colorbar(mappable, ax=ax, fraction=0.046, pad=0.04, label="c")
+            cb.ax.yaxis.set_major_formatter(ticker.ScalarFormatter(useMathText=True))
+            cb.ax.ticklabel_format(style="scientific", scilimits=(-1, 1))
+            return ax.figure, ax
+
+        from mpl_toolkits.axes_grid1 import make_axes_locatable
+
+        fig, axes = plt.subplots(1, 2, figsize=(7.5, 4))
+        axes[0].imshow(im[:, :, z], cmap="gray", interpolation="nearest")
+        axes[0].set_title("Pore structure")
+        div0 = make_axes_locatable(axes[0])
+        phantom = div0.append_axes("right", size="5%", pad=0.05)
+        phantom.set_visible(False)
+
+        mappable = axes[1].imshow(c_slice, cmap="viridis", interpolation="nearest")
+        axes[1].set_title("Concentration field")
+        div1 = make_axes_locatable(axes[1])
+        cax1 = div1.append_axes("right", size="5%", pad=0.05)
+        cb = fig.colorbar(mappable, cax=cax1, label="c")
+        cb.ax.yaxis.set_major_formatter(ticker.ScalarFormatter(useMathText=True))
+        cb.ax.ticklabel_format(style="scientific", scilimits=(-1, 1))
+        fig.tight_layout()
+        return fig, axes
 
 
 _MD_CONVERSION = 9.869233e-16  # 1 milliDarcy in m²
@@ -317,10 +381,12 @@ class PermeabilityResult(SimulationResult):
         Mean pore-space velocity in m/s.
     velocity : ndarray, shape (nx, ny, nz, 3)
         Steady-state velocity field in m/s.
+    pressure : ndarray, shape (nx, ny, nz)
+        Gauge pressure field in Pa.
     """
 
     def __init__(self, im, axis, porosity, k_lu, k_m2, k_mD,
-                 u_darcy, u_pore, velocity):  # fmt: skip
+                 u_darcy, u_pore, velocity, pressure):  # fmt: skip
         super().__init__(im, axis, porosity)
         self.k_lu = k_lu
         self.k_m2 = k_m2
@@ -328,11 +394,124 @@ class PermeabilityResult(SimulationResult):
         self.u_darcy = u_darcy
         self.u_pore = u_pore
         self.velocity = velocity
+        self.pressure = pressure
 
     def __repr__(self):
-        return (
-            f"PermeabilityResult(k_m2={self.k_m2:.6e}, k_mD={self.k_mD:.4f}, axis={self.axis})"
+        lines = [
+            "PermeabilityResult:",
+            f"  axis       = {self.axis}",
+            f"  porosity   = {self.porosity:.4f}",
+            f"  k          = {self.k_m2:.4e} m² ({self.k_mD:.2f} mD)",
+            f"  u_darcy    = {self.u_darcy:.4e} m/s",
+            f"  u_pore     = {self.u_pore:.4e} m/s",
+        ]
+        return "\n".join(lines)
+
+
+    def plot_velocity(self, z=None, ax=None):
+        """Plot velocity magnitude and streamlines on a 2D slice.
+
+        Parameters
+        ----------
+        z : int or None
+            Slice index along the third axis. Defaults to nz // 2.
+        ax : matplotlib.axes.Axes or None
+            If provided, plot velocity magnitude only on this axes.
+            If None, create a side-by-side figure (magnitude +
+            streamlines).
+
+        Returns
+        -------
+        fig : matplotlib.figure.Figure
+        axes : ndarray of Axes (if ax is None) or Axes
+        """
+        import matplotlib.pyplot as plt
+
+        im = np.atleast_3d(self.im)
+        vel = np.atleast_3d(self.velocity)
+        if z is None:
+            z = im.shape[2] // 2
+        v = vel[:, :, z, :]
+        speed = np.linalg.norm(v, axis=-1)
+        solid_mask = ~im[:, :, z]
+        speed_masked = speed.copy()
+        speed_masked[solid_mask] = np.nan
+
+        import matplotlib.ticker as ticker
+
+        if ax is not None:
+            mappable = ax.imshow(speed_masked, cmap="viridis", interpolation="nearest")
+            ax.set_title("Velocity magnitude")
+            cb = ax.figure.colorbar(mappable, ax=ax, fraction=0.046, pad=0.04, label="|u| (m/s)")
+            cb.ax.yaxis.set_major_formatter(ticker.ScalarFormatter(useMathText=True))
+            cb.ax.ticklabel_format(style="scientific", scilimits=(-1, 1))
+            return ax.figure, ax
+
+        from mpl_toolkits.axes_grid1 import make_axes_locatable
+
+        fig, axes = plt.subplots(1, 2, figsize=(7.5, 4))
+        mappable0 = axes[0].imshow(speed_masked, cmap="viridis", interpolation="nearest")
+        axes[0].set_title("Velocity magnitude")
+        div0 = make_axes_locatable(axes[0])
+        cax0 = div0.append_axes("right", size="5%", pad=0.05)
+        cb = fig.colorbar(mappable0, cax=cax0, label="|u| (m/s)")
+        cb.ax.yaxis.set_major_formatter(ticker.ScalarFormatter(useMathText=True))
+        cb.ax.ticklabel_format(style="scientific", scilimits=(-1, 1))
+
+        nx, ny = im.shape[0], im.shape[1]
+        X, Y = np.meshgrid(np.arange(ny), np.arange(nx))
+        lw = 3 * speed / speed.max() + 0.1 if speed.max() > 0 else np.ones_like(speed)
+        axes[1].imshow(im[:, :, z], cmap="gray", interpolation="nearest", alpha=0.3)
+        axes[1].streamplot(
+            X, Y, v[:, :, 1], v[:, :, 0], color=speed,
+            cmap="viridis", density=2, linewidth=lw, arrowstyle="fancy",
         )
+        axes[1].set_xlim(-0.5, ny - 0.5)
+        axes[1].set_ylim(nx - 0.5, -0.5)
+        axes[1].set_title("Velocity streamlines")
+        div1 = make_axes_locatable(axes[1])
+        phantom = div1.append_axes("right", size="5%", pad=0.05)
+        phantom.set_visible(False)
+        fig.tight_layout()
+        return fig, axes
+
+    def plot_pressure(self, z=None, ax=None):
+        """Plot gauge pressure field on a 2D slice.
+
+        Parameters
+        ----------
+        z : int or None
+            Slice index along the third axis. Defaults to nz // 2.
+        ax : matplotlib.axes.Axes or None
+            If provided, plot on this axes. If None, create a new
+            figure.
+
+        Returns
+        -------
+        fig : matplotlib.figure.Figure
+        ax : matplotlib.axes.Axes
+        """
+        import matplotlib.pyplot as plt
+
+        im = np.atleast_3d(self.im)
+        P = np.atleast_3d(self.pressure)
+        if z is None:
+            z = P.shape[2] // 2
+        p_slice = P[:, :, z].astype(float)
+        p_slice[~im[:, :, z]] = np.nan
+
+        if ax is None:
+            fig, ax = plt.subplots(figsize=(4, 4))
+        else:
+            fig = ax.figure
+        import matplotlib.ticker as ticker
+        mappable = ax.imshow(p_slice, cmap="coolwarm", interpolation="nearest")
+        ax.set_title("Pressure field (Pa)")
+        cb = fig.colorbar(mappable, ax=ax, fraction=0.046, pad=0.04, label="P (Pa)")
+        cb.ax.yaxis.set_major_formatter(ticker.ScalarFormatter(useMathText=True))
+        cb.ax.ticklabel_format(style="scientific", scilimits=(-1, 1))
+        plt.tight_layout()
+        return fig, ax
 
 
 # ── LBM metric functions ─────────────────────────────────────────────
@@ -379,9 +558,13 @@ def tortuosity_lbm(
     result : TortuosityResult
     """
     im = np.atleast_3d(np.asarray(im, dtype=bool))
+    n_pore_before = int(im.sum())
     im = _trim_nonpercolating(im, axis)
     if im.sum() == 0:
         raise RuntimeError("No percolating paths along the given axis found in the image.")
+    n_removed = n_pore_before - int(im.sum())
+    if n_removed > 0:
+        logger.warning(f"Trimmed {n_removed} non-percolating pore voxels from the image.")
     solver = TransientDiffusion(im, axis=axis, D=D, voxel_size=voxel_size, sparse=sparse)
     solver.run(n_steps=n_steps, tol=tol, verbose=verbose)
     c = solver.concentration
@@ -451,9 +634,13 @@ def permeability_lbm(
     result : PermeabilityResult
     """
     im = np.atleast_3d(np.asarray(im, dtype=bool))
+    n_pore_before = int(im.sum())
     im = _trim_nonpercolating(im, axis)
     if im.sum() == 0:
         raise RuntimeError("No percolating paths along the given axis found in the image.")
+    n_removed = n_pore_before - int(im.sum())
+    if n_removed > 0:
+        logger.warning(f"Trimmed {n_removed} non-percolating pore voxels from the image.")
     solver = TransientFlow(im, axis=axis, nu=nu, voxel_size=voxel_size, sparse=sparse)
     solver.run(n_steps=n_steps, tol=tol, verbose=verbose)
 
@@ -487,4 +674,5 @@ def permeability_lbm(
         u_darcy=u_darcy,
         u_pore=u_pore,
         velocity=solver.velocity,
+        pressure=solver.pressure,
     )

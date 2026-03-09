@@ -92,15 +92,14 @@ class TransientFlow:
         log_every : int
             Log convergence every this many steps.
         verbose : bool
-            Show a rich progress bar. Default False.
+            Show a progress bar. Default False.
         """
         self._converged = False
         t_start = time.time()
         v_prev = self._solver.get_velocity()
-        progress, task = None, None
+        pbar = None
         if verbose:
-            progress, task = make_progress(n_steps, tol, "Flow")
-            progress.start()
+            pbar = make_progress(n_steps, tol, "Flow")
         try:
             for step in range(n_steps + 1):
                 self._solver.step()
@@ -118,21 +117,23 @@ class TransientFlow:
                     f"delta={ratio:.2e}  "
                     f"elapsed={elapsed:.1f}s"
                 )
-                if progress is not None:
-                    update_progress(progress, task, step, ratio, tol, n_steps)
+                if pbar is not None:
+                    update_progress(pbar, step, ratio, tol, n_steps)
                 if tol is not None and v_total > 0 and ratio < tol:
                     logger.info(
                         f"Converged at step {step} "
                         f"(delta|v|/|v|={ratio:.2e} < tol={tol:.2e})"
                     )
-                    if progress is not None:
-                        progress.update(task, completed=100, status="converged")
+                    if pbar is not None:
+                        pbar.n = 100
+                        pbar.set_postfix_str("converged")
+                        pbar.refresh()
                     self._converged = True
                     return
                 v_prev = v_now
         finally:
-            if progress is not None:
-                progress.stop()
+            if pbar is not None:
+                pbar.close()
 
     def step(self):
         """Advance by one time step."""

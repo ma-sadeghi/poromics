@@ -1,17 +1,11 @@
-# Rich progress bar helpers for LBM solvers.
+# tqdm progress bar helpers for LBM solvers.
 import math
 
-from rich.progress import (
-    BarColumn,
-    Progress,
-    SpinnerColumn,
-    TextColumn,
-    TimeElapsedColumn,
-)
+from tqdm.auto import tqdm
 
 
 def make_progress(n_steps, tol, label):
-    """Create a rich Progress bar and task for convergence tracking.
+    """Create a tqdm progress bar for convergence tracking.
 
     Progress is estimated from how close the current residual is to the
     tolerance on a log scale: ``log(ratio) / log(tol)``. Since the
@@ -29,24 +23,16 @@ def make_progress(n_steps, tol, label):
 
     Returns
     -------
-    progress : rich.progress.Progress
-    task : TaskID
+    pbar : tqdm
     """
-    progress = Progress(
-        SpinnerColumn(),
-        TextColumn("[bold blue]{task.description}"),
-        BarColumn(bar_width=40),
-        TextColumn("[progress.percentage]{task.percentage:>5.1f}%"),
-        TextColumn("·"),
-        TextColumn("{task.fields[status]}"),
-        TextColumn("·"),
-        TimeElapsedColumn(),
-    )
-    task = progress.add_task(label, total=100, status="starting...")
-    return progress, task
+    pbar = tqdm(total=100, desc=label, bar_format=(
+        "{l_bar}{bar}| {n:.1f}% · {postfix} · {elapsed}"
+    ))
+    pbar.set_postfix_str("starting...")
+    return pbar
 
 
-def update_progress(progress, task, step, ratio, tol, n_steps):
+def update_progress(pbar, step, ratio, tol, n_steps):
     """Update the progress bar based on convergence ratio.
 
     Uses log-scale estimation: if ratio started at ~1 and must reach
@@ -55,8 +41,7 @@ def update_progress(progress, task, step, ratio, tol, n_steps):
 
     Parameters
     ----------
-    progress : rich.progress.Progress
-    task : TaskID
+    pbar : tqdm
     step : int
         Current iteration number.
     ratio : float
@@ -73,4 +58,6 @@ def update_progress(progress, task, step, ratio, tol, n_steps):
         pct = min(100.0, max(0.0, (log_ratio / log_tol) * 100))
     else:
         pct = (step / n_steps) * 100 if n_steps > 0 else 0
-    progress.update(task, completed=pct, status=status)
+    pbar.n = pct
+    pbar.set_postfix_str(status)
+    pbar.refresh()
