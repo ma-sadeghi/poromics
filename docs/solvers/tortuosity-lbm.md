@@ -47,3 +47,6 @@ print(f"Formation factor: {result.formation_factor:.4f}")
 | `c`                | Steady-state concentration field               |
 | `formation_factor` | Formation factor $F = 1 / D_\text{eff}$        |
 | `D`                | Bulk diffusivity                               |
+
+!!! note
+    Unlike `PermeabilityResult`, `TortuosityResult` does not have a `rescale` method. Tortuosity, effective diffusivity, and the concentration field are all dimensionless quantities that do not depend on physical units.

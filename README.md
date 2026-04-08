@@ -57,14 +57,14 @@ print(result.tau, result.D_eff)
 
 ```python
 result = poromics.permeability_lbm(im, axis=0, nu=1e-6, voxel_size=1e-6)
-print(result.k_m2, result.k_mD)
+print(result.k)
 ```
 
 ### Result objects
 
 `TortuosityResult` attributes: `im`, `axis`, `porosity`, `tau`, `D_eff`, `c`, `formation_factor`, `D`.
 
-`PermeabilityResult` attributes: `im`, `axis`, `porosity`, `k_lu`, `k_m2`, `k_mD`, `u_darcy`, `u_pore`, `velocity`.
+`PermeabilityResult` attributes: `im`, `axis`, `porosity`, `k`, `u_darcy`, `u_pore`, `velocity`, `pressure`.
 
 ### Simulation solvers
 

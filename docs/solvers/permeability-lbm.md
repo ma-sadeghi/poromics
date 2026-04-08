@@ -39,7 +39,7 @@ result = poromics.permeability_lbm(im, axis=1, nu=1e-6, voxel_size=1e-6)
 ```
 
 ```python exec="1" session="perm"
-print(f"Permeability: {result.k_m2:.4e} m² ({result.k_mD:.2f} mD)")
+print(f"Permeability: {result.k:.4e} m²")
 ```
 
 ## Result
@@ -51,12 +51,26 @@ print(f"Permeability: {result.k_m2:.4e} m² ({result.k_mD:.2f} mD)")
 | `im`        | Boolean image used in the simulation       |
 | `axis`      | Axis along which the simulation was run    |
 | `porosity`  | Pore volume fraction                       |
-| `k_lu`      | Permeability in lattice units (voxels$^2$) |
-| `k_m2`      | Permeability in m$^2$                      |
-| `k_mD`      | Permeability in milliDarcy                 |
+| `k`         | Permeability in m$^2$                      |
 | `u_darcy`   | Darcy (superficial) velocity in m/s        |
 | `u_pore`    | Mean pore-space velocity in m/s            |
 | `velocity`  | Steady-state velocity field (m/s)          |
+| `pressure`  | Gauge pressure field (Pa)                  |
+
+## Rescaling to different physical parameters
+
+Because permeability depends only on geometry and the Stokes equations are linear, the simulation results can be reinterpreted for a different voxel size, fluid viscosity, or fluid density without rerunning the solver:
+
+```python exec="1" session="perm"
+rescaled = result.rescale(voxel_size=5e-6, nu=0.5e-6, rho=800)
+print(f"Rescaled k: {rescaled.k:.4e} m²")
+print(f"Rescaled u_darcy: {rescaled.u_darcy:.4e} m/s")
+```
+
+The `rho` parameter is optional. When provided, the pressure field is converted to Pa; when omitted, `pressure` is set to `None`.
+
+!!! note
+    `TortuosityResult` does not have a `rescale` method because tortuosity, effective diffusivity, and the concentration field are all dimensionless.
 
 ## Visualize the velocity field
 
