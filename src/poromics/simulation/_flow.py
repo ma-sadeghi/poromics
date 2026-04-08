@@ -62,7 +62,7 @@ class TransientFlow:
         self._voxel_size = float(voxel_size)
         self._rho_in = rho_in
         self._rho_out = rho_out
-        self._dt = _d3q19.nu_lu * voxel_size**2 / nu
+        self._dt = _d3q19.nu * voxel_size**2 / nu
         self._n_iterations = 0
         self._converged = False
 
@@ -70,7 +70,7 @@ class TransientFlow:
         from .._lbm._flow_solver import _D3Q19Solver
 
         ti = ensure_taichi()
-        self._solver = _D3Q19Solver(ti, solid, nu=_d3q19.nu_lu, sparse=sparse)
+        self._solver = _D3Q19Solver(ti, solid, nu=_d3q19.nu, sparse=sparse)
         inlet, outlet = axis_to_face[axis]
         self._solver.set_bc_rho(inlet, rho_in)
         self._solver.set_bc_rho(outlet, rho_out)
@@ -119,7 +119,7 @@ class TransientFlow:
                 )
                 if pbar is not None:
                     update_progress(pbar, step, ratio, tol, n_steps)
-                if tol is not None and v_total > 0 and ratio < tol:
+                if tol is not None and step > 0 and v_total > 0 and ratio < tol:
                     logger.info(
                         f"Converged at step {step} "
                         f"(delta|v|/|v|={ratio:.2e} < tol={tol:.2e})"

@@ -59,7 +59,7 @@ class TransientDiffusion:
         self._axis = axis
         self._D = D
         self._voxel_size = float(voxel_size)
-        self._dt = _d3q7.D_lu * voxel_size**2 / D
+        self._dt = _d3q7.D * voxel_size**2 / D
         self._n_iterations = 0
         self._converged = False
 
@@ -67,7 +67,7 @@ class TransientDiffusion:
         from .._lbm._diffusion_solver import _D3Q7Solver
 
         ti = ensure_taichi()
-        self._solver = _D3Q7Solver(ti, solid, D=_d3q7.D_lu, sparse=sparse)
+        self._solver = _D3Q7Solver(ti, solid, D=_d3q7.D, sparse=sparse)
         inlet, outlet = axis_to_face[axis]
         self._solver.set_bc(inlet, c_in)
         self._solver.set_bc(outlet, c_out)
@@ -116,7 +116,7 @@ class TransientDiffusion:
                 )
                 if pbar is not None:
                     update_progress(pbar, step, ratio, tol, n_steps)
-                if tol is not None and c_total > 0 and ratio < tol:
+                if tol is not None and step > 0 and c_total > 0 and ratio < tol:
                     logger.info(
                         f"Converged at step {step} "
                         f"(delta|c|/|c|={ratio:.2e} < tol={tol:.2e})"

@@ -13,7 +13,7 @@ class D3Q7Params:
 
     cs2: float = 0.25
     tau: float = 1.5
-    D_lu: float = 0.25  # D_lu = (tau - 0.5) / 4
+    D: float = 0.25  # (tau - 0.5) / 4
 
 
 @dataclass(frozen=True)
@@ -22,7 +22,7 @@ class D3Q19Params:
 
     cs2: float = 1.0 / 3.0
     tau: float = 1.0
-    nu_lu: float = 1.0 / 6.0  # nu_lu = (tau - 0.5) / 3
+    nu: float = 1.0 / 6.0  # (tau - 0.5) / 3
 
 
 # ── D3Q7 lattice (passive scalar diffusion) ───────────────────────────

@@ -252,8 +252,8 @@ class PermeabilityAPITest:
         """Permeability of open space should be positive and finite."""
         im = np.ones((20, 20, 20), dtype=bool)
         result = permeability_lbm(im, axis=0, voxel_size=1.0, n_steps=5000, tol=1e-3)
-        assert result.k_lu > 0
-        assert np.isfinite(result.k_lu)
+        assert result.k > 0
+        assert np.isfinite(result.k)
         assert result.porosity == 1.0
 
     def test_no_pores(self):
@@ -268,10 +268,56 @@ class PermeabilityAPITest:
         with pytest.raises(ValueError):
             permeability_lbm(im, axis=3, voxel_size=1.0)
 
-    def test_physical_units(self):
-        """Physical units should be consistent: k_m2 = k_lu * dx^2."""
+    def test_k_scales_with_voxel_size(self):
+        """Permeability should scale with voxel_size²."""
         im = np.ones((20, 20, 20), dtype=bool)
         dx = 1e-6
-        result = permeability_lbm(im, axis=0, voxel_size=dx, n_steps=5000, tol=1e-3)
-        assert result.k_m2 == pytest.approx(result.k_lu * dx**2, rel=1e-10)
-        assert result.k_mD == pytest.approx(result.k_m2 / 9.869233e-16, rel=1e-10)
+        r1 = permeability_lbm(im, axis=0, voxel_size=1.0, n_steps=5000, tol=1e-3)
+        r2 = permeability_lbm(im, axis=0, voxel_size=dx, n_steps=5000, tol=1e-3)
+        assert r2.k == pytest.approx(r1.k * dx**2, rel=1e-10)
+
+
+class RescaleTest:
+    """Test PermeabilityResult.rescale()."""
+
+    @pytest.fixture()
+    def base_result(self):
+        im = np.ones((20, 20, 20), dtype=bool)
+        return permeability_lbm(im, axis=0, voxel_size=1e-6, n_steps=5000, tol=1e-3)
+
+    def test_rescale_identity(self, base_result):
+        """Rescaling with the original parameters reproduces the result."""
+        r2 = base_result.rescale(voxel_size=1e-6, nu=1e-6)
+        assert r2.k == pytest.approx(base_result.k, rel=1e-10)
+        assert r2.u_darcy == pytest.approx(base_result.u_darcy, rel=1e-10)
+        assert r2.u_pore == pytest.approx(base_result.u_pore, rel=1e-10)
+        np.testing.assert_allclose(r2.velocity, base_result.velocity, rtol=1e-10)
+
+    def test_rescale_k_scales_with_voxel_size(self, base_result):
+        """k should scale with voxel_size²."""
+        dx2 = 2e-6
+        r2 = base_result.rescale(voxel_size=dx2, nu=1e-6)
+        assert r2.k == pytest.approx(base_result.k * 4.0, rel=1e-10)
+
+    def test_rescale_velocity_changes_with_nu(self, base_result):
+        """Velocity should change when nu changes."""
+        r2 = base_result.rescale(voxel_size=1e-6, nu=2e-6)
+        assert r2.u_darcy != pytest.approx(base_result.u_darcy, rel=1e-3)
+        assert r2.k == pytest.approx(base_result.k, rel=1e-10)
+
+    def test_rescale_pressure_requires_rho(self, base_result):
+        """Pressure should be None when rho is not provided."""
+        r2 = base_result.rescale(voxel_size=1e-6, nu=1e-6)
+        assert r2.pressure is None
+
+    def test_rescale_pressure_with_rho(self, base_result):
+        """Pressure should be an array when rho is provided."""
+        r2 = base_result.rescale(voxel_size=1e-6, nu=1e-6, rho=1000.0)
+        assert r2.pressure is not None
+        assert r2.pressure.shape == base_result.pressure.shape
+
+    def test_rescale_is_chainable(self, base_result):
+        """Rescaling a rescaled result should work."""
+        r2 = base_result.rescale(voxel_size=2e-6, nu=2e-6)
+        r3 = r2.rescale(voxel_size=1e-6, nu=1e-6)
+        assert r3.k == pytest.approx(base_result.k, rel=1e-10)

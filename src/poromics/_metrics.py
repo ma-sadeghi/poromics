@@ -257,6 +257,10 @@ class SimulationResult:
 class TortuosityResult(SimulationResult):
     """Results from a tortuosity / effective diffusivity simulation.
 
+    Tortuosity, effective diffusivity, and the concentration field are
+    all dimensionless (or normalized), so no ``rescale`` method is
+    provided. See ``PermeabilityResult.rescale`` for the flow analogue.
+
     Parameters
     ----------
     im : ndarray
@@ -361,6 +365,10 @@ _MD_CONVERSION = 9.869233e-16  # 1 milliDarcy in m²
 class PermeabilityResult(SimulationResult):
     """Results from an LBM flow / permeability simulation.
 
+    Use ``rescale`` to reinterpret the simulation for a different
+    voxel size, fluid viscosity, or fluid density without rerunning
+    the solver.
+
     Parameters
     ----------
     im : ndarray
@@ -369,12 +377,8 @@ class PermeabilityResult(SimulationResult):
         The axis along which flow was computed.
     porosity : float
         Pore volume fraction.
-    k_lu : float
-        Permeability in lattice units (voxels²).
-    k_m2 : float
+    k : float
         Permeability in m².
-    k_mD : float
-        Permeability in milliDarcy.
     u_darcy : float
         Darcy (superficial) velocity in m/s.
     u_pore : float
@@ -385,23 +389,79 @@ class PermeabilityResult(SimulationResult):
         Gauge pressure field in Pa.
     """
 
-    def __init__(self, im, axis, porosity, k_lu, k_m2, k_mD,
-                 u_darcy, u_pore, velocity, pressure):  # fmt: skip
+    def __init__(self, im, axis, porosity, k, u_darcy, u_pore,
+                 velocity, pressure, *, _velocity_lu=None,
+                 _rho_lu=None, _rho_out=None, _k_lu=None,
+                 _u_darcy_lu=None, _u_pore_lu=None):  # fmt: skip
         super().__init__(im, axis, porosity)
-        self.k_lu = k_lu
-        self.k_m2 = k_m2
-        self.k_mD = k_mD
+        self.k = k
         self.u_darcy = u_darcy
         self.u_pore = u_pore
         self.velocity = velocity
         self.pressure = pressure
+        self._velocity_lu = _velocity_lu
+        self._rho_lu = _rho_lu
+        self._rho_out = _rho_out
+        self._k_lu = _k_lu
+        self._u_darcy_lu = _u_darcy_lu
+        self._u_pore_lu = _u_pore_lu
+
+    def rescale(self, voxel_size, nu, rho=None):
+        """Reinterpret the simulation for different physical parameters.
+
+        Returns a new ``PermeabilityResult`` with recomputed physical
+        quantities. The underlying lattice-unit fields are unchanged,
+        so no solver re-run is needed. This is valid because
+        permeability depends only on geometry, and the Stokes equations
+        are linear.
+
+        Parameters
+        ----------
+        voxel_size : float
+            Physical voxel edge length in metres.
+        nu : float
+            Kinematic viscosity in m²/s.
+        rho : float or None
+            Fluid density in kg/m³. Required for pressure conversion
+            to Pa. If None, the pressure field is omitted (set to
+            None).
+
+        Returns
+        -------
+        result : PermeabilityResult
+        """
+        if self._velocity_lu is None:
+            raise RuntimeError(
+                "Lattice-unit data not available for rescaling."
+            )
+        dt = _d3q19.nu * voxel_size**2 / nu
+        lu_to_phys = voxel_size / dt
+        k = self._k_lu * voxel_size**2
+        u_darcy = self._u_darcy_lu * lu_to_phys
+        u_pore = self._u_pore_lu * lu_to_phys
+        velocity = self._velocity_lu * lu_to_phys
+        if rho is not None:
+            gauge_rho = self._rho_lu - self._rho_out
+            pressure = rho * _d3q19.cs2 * lu_to_phys**2 * gauge_rho
+        else:
+            pressure = None
+        return PermeabilityResult(
+            im=self.im, axis=self.axis, porosity=self.porosity,
+            k=k, u_darcy=u_darcy, u_pore=u_pore,
+            velocity=velocity, pressure=pressure,
+            _velocity_lu=self._velocity_lu, _rho_lu=self._rho_lu,
+            _rho_out=self._rho_out, _k_lu=self._k_lu,
+            _u_darcy_lu=self._u_darcy_lu,
+            _u_pore_lu=self._u_pore_lu,
+        )
 
     def __repr__(self):
+        k_mD = self.k / _MD_CONVERSION
         lines = [
             "PermeabilityResult:",
             f"  axis       = {self.axis}",
             f"  porosity   = {self.porosity:.4f}",
-            f"  k          = {self.k_m2:.4e} m² ({self.k_mD:.2f} mD)",
+            f"  k          = {self.k:.4e} m\u00b2 ({k_mD:.2f} mD)",
             f"  u_darcy    = {self.u_darcy:.4e} m/s",
             f"  u_pore     = {self.u_pore:.4e} m/s",
         ]
@@ -573,7 +633,7 @@ def tortuosity_lbm(
     L = im.shape[axis]
     J_mean = solver.flux(axis)
     D_eff_lu = J_mean * L  # delta_c = 1.0
-    D_eff_norm = D_eff_lu / _d3q7.D_lu
+    D_eff_norm = D_eff_lu / _d3q7.D
     if D_eff_norm > 0:
         formation_factor = 1.0 / D_eff_norm
     else:
@@ -646,6 +706,7 @@ def permeability_lbm(
 
     # Work in lattice units for Darcy's law, then convert
     v_lu = solver._solver.get_velocity()
+    rho_lu = solver._solver.get_density()
     pore_mask = im
     porosity = float(pore_mask.sum()) / pore_mask.size
     L = im.shape[axis]
@@ -654,12 +715,11 @@ def permeability_lbm(
     u_darcy_lu = float(np.mean(v_flow_lu))
     u_pore_lu = float(np.mean(v_flow_lu[pore_mask]))
     grad_P_lu = (solver._rho_in - solver._rho_out) * _d3q19.cs2 / L
-    k_lu = u_darcy_lu * _d3q19.nu_lu / grad_P_lu
+    k_lu = u_darcy_lu * _d3q19.nu / grad_P_lu
 
     # Convert to physical units
     dx = voxel_size
-    k_m2 = k_lu * dx**2
-    k_mD = k_m2 / _MD_CONVERSION
+    k = k_lu * dx**2
     lu_to_phys = dx / solver.dt
     u_darcy = u_darcy_lu * lu_to_phys
     u_pore = u_pore_lu * lu_to_phys
@@ -668,11 +728,15 @@ def permeability_lbm(
         im=im,
         axis=axis,
         porosity=porosity,
-        k_lu=k_lu,
-        k_m2=k_m2,
-        k_mD=k_mD,
+        k=k,
         u_darcy=u_darcy,
         u_pore=u_pore,
         velocity=solver.velocity,
         pressure=solver.pressure,
+        _velocity_lu=v_lu,
+        _rho_lu=rho_lu,
+        _rho_out=solver._rho_out,
+        _k_lu=k_lu,
+        _u_darcy_lu=u_darcy_lu,
+        _u_pore_lu=u_pore_lu,
     )
