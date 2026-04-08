@@ -18,7 +18,7 @@ theme:
         icon: material/brightness-4
         name: Switch to light mode
   font:
-    text: Roboto
+    text: IBM Plex Sans
   features:
     - navigation.tabs
     - navigation.top
@@ -69,7 +69,8 @@ markdown_extensions:
   - def_list
   - footnotes
   - md_in_html
-  - pymdownx.arithmatex
+  - pymdownx.arithmatex:
+      generic: true
   - pymdownx.blocks.caption
   - pymdownx.details
   - pymdownx.highlight:
@@ -79,7 +80,8 @@ markdown_extensions:
       custom_checkbox: true
 
 extra_javascript:
-  - https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML
+  - javascripts/mathjax.js
+  - https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js
 
 docs_dir: docs
 
@@ -102,6 +104,7 @@ nav:
     - Tortuosity (FDM): "examples/diffusion-fd.ipynb"
     - Tortuosity (LBM): "examples/diffusion-lbm.ipynb"
     - Permeability (LBM): "examples/flow-lbm.ipynb"
+    - Rescaling Results: "examples/rescaling.ipynb"
   - Reference:
     - API: "reference.md"
     - Simulation API: "simulation.md"

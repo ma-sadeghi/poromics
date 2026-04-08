@@ -30,3 +30,9 @@ span.md-ellipsis > span {
 /* span.md-ellipsis {
     font-family: 'Recursive', sans-serif;
 } */
+
+/* Hide Jupyter cell prompt numbers (In[N]: / Out[N]:) */
+.jp-InputPrompt,
+.jp-OutputPrompt {
+    display: none !important;
+}
