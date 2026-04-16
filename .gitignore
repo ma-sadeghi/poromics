@@ -167,6 +167,8 @@ poromics/_version.py
 .github/copilot-commit-message-instructions.md
 CLAUDE.md
 HISTORY.md
+LBM.md
+POISEUILLE.md
 
 # Development files
 dev-juliapkg.json
