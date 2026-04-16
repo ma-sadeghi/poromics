@@ -57,5 +57,28 @@ print(f"Formation factor: {result.formation_factor:.4f}")
     Always check this flag on slow-to-converge geometries, and
     consider raising `n_steps` or loosening `tol`.
 
+### Tolerance and step-count guidance
+
+`tol` measures the relative change in the concentration field between
+samples taken 500 steps apart — it is a *rate* of change, not an
+error bound. Tortuosity is noticeably more sensitive to tolerance
+than permeability because it is derived from a gradient, not a
+volume average.
+
+Empirically, on 40³ blob images:
+
+| Porosity | `tol=1e-2`  | `tol=1e-3` (default) | `tol=1e-4` |
+|---------:|------------:|---------------------:|-----------:|
+| 0.7      | ~1,500 (0.3 %) | ~3,000 (0.03 %)   | ~5,500     |
+| 0.5      | ~2,000 (0.8 %) | ~5,000 (0.04 %)   | ~9,000     |
+| 0.3      | ~4,000 (0.7 %) | ~9,500 (0.08 %)   | ~21,000    |
+
+(Numbers in parentheses are the relative error in `tau` compared to
+the tighter `tol=1e-4` reference.) At tight porosities `tol=1e-2` can
+leave tau off by up to ~1 %, which is why the default is `1e-3`.
+
+Diffusive relaxation time scales like $L^2 / D$, so iteration counts
+scale roughly as $(L/40)^2$ for larger domains.
+
 !!! note
     Unlike `PermeabilityResult`, `TortuosityResult` does not have a `rescale` method. Tortuosity, effective diffusivity, and the concentration field are all dimensionless quantities that do not depend on physical units.

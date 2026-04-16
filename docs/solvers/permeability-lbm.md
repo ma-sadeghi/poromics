@@ -69,6 +69,27 @@ print(f"Permeability: {result.k:.4e} m²")
     tight geometries, and consider raising `n_steps` or loosening
     `tol`.
 
+### Tolerance and step-count guidance
+
+`tol` measures the relative change in the velocity field between
+samples taken 500 steps apart — it is a *rate* of change, not an error
+bound. Tighter `tol` means a more steady result, at the cost of more
+iterations.
+
+Empirically, on 40³ blob images (higher porosities converge faster):
+
+| Porosity | `tol=1e-2` | `tol=1e-3` (default) | error vs. tighter |
+|---------:|-----------:|---------------------:|------------------:|
+| 0.7      | ~1,500     | ~2,000               | < 0.01 %          |
+| 0.5      | ~2,500     | ~3,500               | < 0.01 %          |
+| 0.3      | ~6,500     | ~14,000              | ~0.01 %           |
+
+Because LBM viscous relaxation time scales like $L^2 / \nu$, iteration
+counts scale roughly as $(L/40)^2$ for larger domains. A 100³ image
+with tight porosity may need 100,000 steps at the default tolerance.
+The default `n_steps=100_000` is generous for most realistic images;
+raise it for large, tight samples.
+
 !!! note "Pressure requires a fluid density"
     The LBM equation of state is $p = \rho\,c_s^2$, so converting
     lattice density to pascals requires knowing the fluid density
