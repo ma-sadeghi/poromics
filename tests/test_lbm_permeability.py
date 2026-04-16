@@ -309,15 +309,94 @@ class RescaleTest:
         """Pressure should be None when rho is not provided."""
         r2 = base_result.rescale(voxel_size=1e-6, nu=1e-6)
         assert r2.pressure is None
+        assert r2.kinematic_pressure is not None
 
     def test_rescale_pressure_with_rho(self, base_result):
         """Pressure should be an array when rho is provided."""
         r2 = base_result.rescale(voxel_size=1e-6, nu=1e-6, rho=1000.0)
         assert r2.pressure is not None
-        assert r2.pressure.shape == base_result.pressure.shape
+        assert r2.pressure.shape == base_result.im.shape
+        np.testing.assert_allclose(
+            r2.pressure, 1000.0 * r2.kinematic_pressure, rtol=1e-12
+        )
 
     def test_rescale_is_chainable(self, base_result):
         """Rescaling a rescaled result should work."""
         r2 = base_result.rescale(voxel_size=2e-6, nu=2e-6)
         r3 = r2.rescale(voxel_size=1e-6, nu=1e-6)
         assert r3.k == pytest.approx(base_result.k, rel=1e-10)
+
+
+class PressureUnitsTest:
+    """Regression tests for pressure-field unit handling."""
+
+    def test_transient_flow_pressure_raises_without_rho(self):
+        im = np.ones((10, 10, 10), dtype=bool)
+        solver = TransientFlow(im, axis=0, nu=1e-6, voxel_size=1e-6)
+        solver.run(n_steps=100, tol=None)
+        with pytest.raises(RuntimeError, match="rho"):
+            _ = solver.pressure
+
+    def test_transient_flow_kinematic_pressure_always_available(self):
+        im = np.ones((10, 10, 10), dtype=bool)
+        solver = TransientFlow(im, axis=0, nu=1e-6, voxel_size=1e-6)
+        solver.run(n_steps=100, tol=None)
+        Pk = solver.kinematic_pressure
+        assert Pk.shape == im.shape
+        assert np.isfinite(Pk).all()
+
+    def test_transient_flow_pressure_scales_with_rho(self):
+        im = np.ones((10, 10, 10), dtype=bool)
+        s1 = TransientFlow(im, axis=0, nu=1e-6, voxel_size=1e-6, rho=1.0)
+        s1.run(n_steps=200, tol=None)
+        s2 = TransientFlow(im, axis=0, nu=1e-6, voxel_size=1e-6, rho=1000.0)
+        s2.run(n_steps=200, tol=None)
+        np.testing.assert_allclose(s2.pressure, 1000.0 * s1.pressure, rtol=1e-10)
+        np.testing.assert_allclose(
+            s1.pressure, 1.0 * s1.kinematic_pressure, rtol=1e-10
+        )
+
+    def test_permeability_lbm_pressure_none_without_rho(self):
+        im = np.ones((10, 10, 10), dtype=bool)
+        result = permeability_lbm(im, axis=0, voxel_size=1e-6,
+                                  n_steps=500, tol=1e-3)  # fmt: skip
+        assert result.pressure is None
+        assert result.kinematic_pressure is not None
+        assert result.kinematic_pressure.shape == im.shape
+
+    def test_permeability_lbm_pressure_pa_with_rho(self):
+        im = np.ones((10, 10, 10), dtype=bool)
+        result = permeability_lbm(im, axis=0, voxel_size=1e-6, rho=1000.0,
+                                  n_steps=500, tol=1e-3)  # fmt: skip
+        assert result.pressure is not None
+        np.testing.assert_allclose(
+            result.pressure, 1000.0 * result.kinematic_pressure, rtol=1e-10
+        )
+
+
+class ConvergenceSignalTest:
+    """Regression tests for exposing convergence state on results."""
+
+    def test_converged_true_on_easy_case(self):
+        im = np.ones((10, 10, 10), dtype=bool)
+        result = permeability_lbm(im, axis=0, voxel_size=1e-6,
+                                  n_steps=10000, tol=1e-2)  # fmt: skip
+        assert result.converged is True
+        assert result.n_iterations is not None
+        assert result.n_iterations > 0
+
+    def test_converged_false_when_steps_exhausted(self):
+        from loguru import logger as _loguru
+
+        messages = []
+        handler_id = _loguru.add(lambda m: messages.append(str(m)), level="WARNING")
+        try:
+            im = np.ones((10, 10, 10), dtype=bool)
+            result = permeability_lbm(
+                im, axis=0, voxel_size=1e-6, n_steps=1, tol=1e-12,
+            )
+        finally:
+            _loguru.remove(handler_id)
+        assert result.converged is False
+        assert result.n_iterations > 0
+        assert any("did not converge" in m for m in messages)

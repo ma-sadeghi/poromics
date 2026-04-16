@@ -32,3 +32,26 @@ def test_tau_lbm_invalid_axis():
     im = np.ones((10, 10, 10), dtype=bool)
     with pytest.raises(ValueError):
         tortuosity_lbm(im, axis=3, voxel_size=1.0)
+
+
+def test_tau_lbm_converged_true_on_easy_case():
+    im = np.ones((10, 10, 10), dtype=bool)
+    result = tortuosity_lbm(im, axis=0, voxel_size=1.0, n_steps=10000, tol=1e-2)
+    assert result.converged is True
+    assert result.n_iterations is not None
+    assert result.n_iterations > 0
+
+
+def test_tau_lbm_converged_false_when_steps_exhausted():
+    from loguru import logger as _loguru
+
+    messages = []
+    handler_id = _loguru.add(lambda m: messages.append(str(m)), level="WARNING")
+    try:
+        im = np.ones((10, 10, 10), dtype=bool)
+        result = tortuosity_lbm(im, axis=0, voxel_size=1.0, n_steps=1, tol=1e-12)
+    finally:
+        _loguru.remove(handler_id)
+    assert result.converged is False
+    assert result.n_iterations > 0
+    assert any("did not converge" in m for m in messages)

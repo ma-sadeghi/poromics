@@ -29,29 +29,38 @@ class TransientFlow:
         Kinematic viscosity in m²/s.
     voxel_size : float
         Physical voxel edge length in metres.
+    rho : float or None
+        Fluid density in kg/m³. Required to expose ``pressure`` in
+        pascals; if None, only ``kinematic_pressure`` (m²/s²) is
+        available. Permeability and velocity are independent of
+        density (Stokes regime), so None is fine for those.
     rho_in : float
-        Inlet density (pressure BC). Default 1.0.
+        Inlet lattice density (pressure BC). Default 1.0.
     rho_out : float
-        Outlet density (pressure BC). Default 0.99.
+        Outlet lattice density (pressure BC). Default 0.99.
     sparse : bool
         Use Taichi sparse storage. Default False.
 
     Examples
     --------
-    >>> solver = TransientFlow(im, axis=0, nu=1e-6, voxel_size=1e-6)
+    >>> solver = TransientFlow(im, axis=0, nu=1e-6, voxel_size=1e-6,
+    ...                        rho=1000.0)
     >>> solver.run(tol=1e-3)
-    >>> v = solver.velocity    # m/s
-    >>> P = solver.pressure    # Pa (gauge)
+    >>> v = solver.velocity            # m/s
+    >>> P = solver.pressure            # Pa (gauge, needs rho)
+    >>> Pk = solver.kinematic_pressure # m²/s² (density-free)
     """
 
-    def __init__(self, im, axis, nu, voxel_size, rho_in=1.0, rho_out=0.99,
-                 sparse=False):  # fmt: skip
+    def __init__(self, im, axis, nu, voxel_size, rho=None, rho_in=1.0,
+                 rho_out=0.99, sparse=False):  # fmt: skip
         if axis not in (0, 1, 2):
             raise ValueError(f"axis must be 0, 1, or 2, got {axis}")
         if nu <= 0:
             raise ValueError(f"nu must be > 0, got {nu}")
         if voxel_size <= 0:
             raise ValueError(f"voxel_size must be > 0, got {voxel_size}")
+        if rho is not None and rho <= 0:
+            raise ValueError(f"rho must be > 0 or None, got {rho}")
         im_arr = np.atleast_3d(np.asarray(im))
         solid = (im_arr == 0).astype(np.int8)
         if solid.sum() == solid.size:
@@ -60,6 +69,7 @@ class TransientFlow:
         self._axis = axis
         self._nu = nu
         self._voxel_size = float(voxel_size)
+        self._rho = rho
         self._rho_in = rho_in
         self._rho_out = rho_out
         self._dt = _d3q19.nu * voxel_size**2 / nu
@@ -169,14 +179,29 @@ class TransientFlow:
         return v_lu * (self._voxel_size / self._dt)
 
     @property
-    def pressure(self):
-        """Gauge pressure field in Pa, shape (nx, ny, nz).
+    def kinematic_pressure(self):
+        """Kinematic gauge pressure field in m²/s², shape (nx, ny, nz).
 
-        Pressure is relative to the outlet face density. Uses the LBM
-        equation of state ``p = rho * cs²`` with the lattice reference
-        density ``rho_0 = 1``, so no additional fluid density parameter
-        is needed.
+        Equals ``p / rho``, i.e. the density-free part of the LBM
+        equation of state ``p = rho * cs²``. Always available,
+        regardless of whether a fluid density was provided.
         """
         rho_lu = self._solver.get_density()
         scale = _d3q19.cs2 * (self._voxel_size / self._dt) ** 2
         return (rho_lu - self._rho_out) * scale
+
+    @property
+    def pressure(self):
+        """Gauge pressure field in Pa, shape (nx, ny, nz).
+
+        Relative to the outlet face. Requires the fluid density
+        ``rho`` to have been provided in the constructor; otherwise
+        use ``kinematic_pressure`` (m²/s²) instead.
+        """
+        if self._rho is None:
+            raise RuntimeError(
+                "Pressure in Pa is undefined without a fluid density. "
+                "Pass rho=... to TransientFlow, or read "
+                "`kinematic_pressure` (m²/s²) instead."
+            )
+        return self._rho * self.kinematic_pressure

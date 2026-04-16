@@ -54,6 +54,8 @@ def _run_tortuosity_fd(im, axis, D, rtol, gpu, verbose):
         "c": np.asarray(c),
         "formation_factor": float(formation_factor),
         "D": D,
+        "converged": True,
+        "n_iterations": None,
     }
 
 

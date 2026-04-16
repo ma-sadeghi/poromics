@@ -88,6 +88,8 @@ def _tortuosity_fd_inprocess(im, axis, D, rtol, gpu, verbose):
         c=np.asarray(c),
         formation_factor=formation_factor,
         D=D,
+        converged=True,
+        n_iterations=None,
     )
 
 
@@ -280,16 +282,25 @@ class TortuosityResult(SimulationResult):
     D : float or ndarray
         Bulk diffusivity (float for uniform, ndarray for spatially
         variable).
+    converged : bool
+        Whether the solver reached the requested tolerance. False
+        means the reported tau / D_eff are from a pre-steady-state
+        field and should not be trusted without further iteration.
+    n_iterations : int or None
+        Iterations the solver took. None for non-iterative backends.
     """
 
     def __init__(self, im, axis, porosity, tau, D_eff, c,
-                 formation_factor=None, D=None):  # fmt: skip
+                 formation_factor=None, D=None, *,
+                 converged=True, n_iterations=None):  # fmt: skip
         super().__init__(im, axis, porosity)
         self.tau = tau
         self.D_eff = D_eff
         self.c = c
         self.formation_factor = formation_factor
         self.D = D
+        self.converged = converged
+        self.n_iterations = n_iterations
 
     def __repr__(self):
         lines = [
@@ -299,6 +310,10 @@ class TortuosityResult(SimulationResult):
             f"  tau        = {self.tau:.4f}",
             f"  D_eff/D    = {self.D_eff:.6f}",
             f"  F          = {self.formation_factor:.4f}",
+            f"  converged  = {self.converged}" + (
+                f" ({self.n_iterations} iters)"
+                if self.n_iterations is not None else ""
+            ),
         ]
         return "\n".join(lines)
 
@@ -385,20 +400,35 @@ class PermeabilityResult(SimulationResult):
         Mean pore-space velocity in m/s.
     velocity : ndarray, shape (nx, ny, nz, 3)
         Steady-state velocity field in m/s.
-    pressure : ndarray, shape (nx, ny, nz)
-        Gauge pressure field in Pa.
+    kinematic_pressure : ndarray, shape (nx, ny, nz)
+        Gauge kinematic pressure (p / rho) in m²/s². Density-free;
+        always populated.
+    pressure : ndarray or None, shape (nx, ny, nz)
+        Gauge pressure in Pa. Populated only when a fluid density was
+        provided (``rho`` in ``permeability_lbm`` or ``rescale``).
+    converged : bool
+        Whether the solver reached the requested tolerance. False
+        means the reported k / velocity are from a pre-steady-state
+        field and should not be trusted without further iteration.
+    n_iterations : int or None
+        Iterations the solver took. None for non-iterative backends.
     """
 
     def __init__(self, im, axis, porosity, k, u_darcy, u_pore,
-                 velocity, pressure, *, _velocity_lu=None,
-                 _rho_lu=None, _rho_out=None, _k_lu=None,
-                 _u_darcy_lu=None, _u_pore_lu=None):  # fmt: skip
+                 velocity, kinematic_pressure, pressure=None, *,
+                 converged=True, n_iterations=None,
+                 _velocity_lu=None, _rho_lu=None, _rho_out=None,
+                 _k_lu=None, _u_darcy_lu=None,
+                 _u_pore_lu=None):  # fmt: skip
         super().__init__(im, axis, porosity)
         self.k = k
         self.u_darcy = u_darcy
         self.u_pore = u_pore
         self.velocity = velocity
+        self.kinematic_pressure = kinematic_pressure
         self.pressure = pressure
+        self.converged = converged
+        self.n_iterations = n_iterations
         self._velocity_lu = _velocity_lu
         self._rho_lu = _rho_lu
         self._rho_out = _rho_out
@@ -423,8 +453,8 @@ class PermeabilityResult(SimulationResult):
             Kinematic viscosity in m²/s.
         rho : float or None
             Fluid density in kg/m³. Required for pressure conversion
-            to Pa. If None, the pressure field is omitted (set to
-            None).
+            to Pa. If None, the ``pressure`` field is omitted (set to
+            None); ``kinematic_pressure`` is always populated.
 
         Returns
         -------
@@ -440,15 +470,15 @@ class PermeabilityResult(SimulationResult):
         u_darcy = self._u_darcy_lu * lu_to_phys
         u_pore = self._u_pore_lu * lu_to_phys
         velocity = self._velocity_lu * lu_to_phys
-        if rho is not None:
-            gauge_rho = self._rho_lu - self._rho_out
-            pressure = rho * _d3q19.cs2 * lu_to_phys**2 * gauge_rho
-        else:
-            pressure = None
+        gauge_rho = self._rho_lu - self._rho_out
+        kinematic_pressure = _d3q19.cs2 * lu_to_phys**2 * gauge_rho
+        pressure = rho * kinematic_pressure if rho is not None else None
         return PermeabilityResult(
             im=self.im, axis=self.axis, porosity=self.porosity,
             k=k, u_darcy=u_darcy, u_pore=u_pore,
-            velocity=velocity, pressure=pressure,
+            velocity=velocity, kinematic_pressure=kinematic_pressure,
+            pressure=pressure, converged=self.converged,
+            n_iterations=self.n_iterations,
             _velocity_lu=self._velocity_lu, _rho_lu=self._rho_lu,
             _rho_out=self._rho_out, _k_lu=self._k_lu,
             _u_darcy_lu=self._u_darcy_lu,
@@ -464,6 +494,10 @@ class PermeabilityResult(SimulationResult):
             f"  k          = {self.k:.4e} m\u00b2 ({k_mD:.2f} mD)",
             f"  u_darcy    = {self.u_darcy:.4e} m/s",
             f"  u_pore     = {self.u_pore:.4e} m/s",
+            f"  converged  = {self.converged}" + (
+                f" ({self.n_iterations} iters)"
+                if self.n_iterations is not None else ""
+            ),
         ]
         return "\n".join(lines)
 
@@ -535,7 +569,7 @@ class PermeabilityResult(SimulationResult):
         fig.tight_layout()
         return fig, axes
 
-    def plot_pressure(self, z=None, ax=None):
+    def plot_pressure(self, z=None, ax=None, kinematic=False):
         """Plot gauge pressure field on a 2D slice.
 
         Parameters
@@ -545,6 +579,10 @@ class PermeabilityResult(SimulationResult):
         ax : matplotlib.axes.Axes or None
             If provided, plot on this axes. If None, create a new
             figure.
+        kinematic : bool
+            Plot ``kinematic_pressure`` (m²/s²) instead of
+            ``pressure`` (Pa). Useful when no fluid density was
+            provided.
 
         Returns
         -------
@@ -553,8 +591,24 @@ class PermeabilityResult(SimulationResult):
         """
         import matplotlib.pyplot as plt
 
+        if kinematic:
+            field, title, label = (
+                self.kinematic_pressure,
+                "Kinematic pressure (m²/s²)",
+                "p/ρ (m²/s²)",
+            )
+        else:
+            if self.pressure is None:
+                raise RuntimeError(
+                    "Pressure in Pa is unavailable because no fluid "
+                    "density was provided. Pass rho=... to "
+                    "permeability_lbm / rescale, or call with "
+                    "kinematic=True."
+                )
+            field, title, label = self.pressure, "Pressure field (Pa)", "P (Pa)"
+
         im = np.atleast_3d(self.im)
-        P = np.atleast_3d(self.pressure)
+        P = np.atleast_3d(field)
         if z is None:
             z = P.shape[2] // 2
         p_slice = P[:, :, z].astype(float)
@@ -566,8 +620,8 @@ class PermeabilityResult(SimulationResult):
             fig = ax.figure
         import matplotlib.ticker as ticker
         mappable = ax.imshow(p_slice, cmap="coolwarm", interpolation="nearest")
-        ax.set_title("Pressure field (Pa)")
-        cb = fig.colorbar(mappable, ax=ax, fraction=0.046, pad=0.04, label="P (Pa)")
+        ax.set_title(title)
+        cb = fig.colorbar(mappable, ax=ax, fraction=0.046, pad=0.04, label=label)
         cb.ax.yaxis.set_major_formatter(ticker.ScalarFormatter(useMathText=True))
         cb.ax.ticklabel_format(style="scientific", scilimits=(-1, 1))
         plt.tight_layout()
@@ -627,6 +681,13 @@ def tortuosity_lbm(
         logger.warning(f"Trimmed {n_removed} non-percolating pore voxels from the image.")
     solver = TransientDiffusion(im, axis=axis, D=D, voxel_size=voxel_size, sparse=sparse)
     solver.run(n_steps=n_steps, tol=tol, verbose=verbose)
+    if not solver.converged:
+        logger.warning(
+            f"LBM diffusion solver did not converge after "
+            f"{solver.n_iterations} steps (tol={tol:.2e}). "
+            f"Reported tau / D_eff are from a pre-steady-state field; "
+            f"increase n_steps or loosen tol."
+        )
     c = solver.concentration
 
     porosity = float(im.sum()) / im.size
@@ -649,6 +710,8 @@ def tortuosity_lbm(
         formation_factor=formation_factor,
         c=c,
         D=D,
+        converged=solver.converged,
+        n_iterations=solver.n_iterations,
     )
 
 
@@ -657,6 +720,7 @@ def permeability_lbm(
     *,
     axis: int,
     nu: float = 1e-6,
+    rho: float | None = None,
     voxel_size: float,
     tol: float = 1e-3,
     n_steps: int = 100_000,
@@ -678,6 +742,11 @@ def permeability_lbm(
         (0=x, 1=y, 2=z).
     nu : float
         Kinematic viscosity in m²/s. Default 1e-6 (water at ~20 °C).
+    rho : float or None
+        Fluid density in kg/m³. Required to return ``pressure`` in
+        pascals; if None, ``pressure`` is set to None and only
+        ``kinematic_pressure`` (m²/s²) is populated. Permeability and
+        velocity are independent of density (Stokes regime).
     voxel_size : float
         Physical voxel edge length in metres.
     tol : float
@@ -701,8 +770,16 @@ def permeability_lbm(
     n_removed = n_pore_before - int(im.sum())
     if n_removed > 0:
         logger.warning(f"Trimmed {n_removed} non-percolating pore voxels from the image.")
-    solver = TransientFlow(im, axis=axis, nu=nu, voxel_size=voxel_size, sparse=sparse)
+    solver = TransientFlow(im, axis=axis, nu=nu, rho=rho,
+                           voxel_size=voxel_size, sparse=sparse)  # fmt: skip
     solver.run(n_steps=n_steps, tol=tol, verbose=verbose)
+    if not solver.converged:
+        logger.warning(
+            f"LBM flow solver did not converge after "
+            f"{solver.n_iterations} steps (tol={tol:.2e}). "
+            f"Reported k / velocity are from a pre-steady-state field; "
+            f"increase n_steps or loosen tol."
+        )
 
     # Work in lattice units for Darcy's law, then convert
     v_lu = solver._solver.get_velocity()
@@ -724,6 +801,9 @@ def permeability_lbm(
     u_darcy = u_darcy_lu * lu_to_phys
     u_pore = u_pore_lu * lu_to_phys
 
+    kinematic_pressure = solver.kinematic_pressure
+    pressure = solver.pressure if rho is not None else None
+
     return PermeabilityResult(
         im=im,
         axis=axis,
@@ -732,7 +812,10 @@ def permeability_lbm(
         u_darcy=u_darcy,
         u_pore=u_pore,
         velocity=solver.velocity,
-        pressure=solver.pressure,
+        kinematic_pressure=kinematic_pressure,
+        pressure=pressure,
+        converged=solver.converged,
+        n_iterations=solver.n_iterations,
         _velocity_lu=v_lu,
         _rho_lu=rho_lu,
         _rho_out=solver._rho_out,
