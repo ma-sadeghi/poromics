@@ -637,8 +637,9 @@ def tortuosity_lbm(
     axis: int,
     D: float = 1e-9,
     voxel_size: float,
-    tol: float = 1e-2,
+    tol: float = 1e-3,
     n_steps: int = 100_000,
+    n_flux_slices: int = 5,
     sparse: bool = False,
     verbose: bool = True,
 ) -> TortuosityResult:
@@ -662,6 +663,10 @@ def tortuosity_lbm(
         Convergence tolerance on relative concentration change.
     n_steps : int
         Maximum number of LBM iterations.
+    n_flux_slices : int
+        Number of interior slices to average when computing the flux
+        used to derive ``D_eff`` and ``tau``. Default 5. Use 1 for a
+        single-midplane estimate.
     sparse : bool
         Use Taichi sparse storage.
     verbose : bool
@@ -692,7 +697,7 @@ def tortuosity_lbm(
 
     porosity = float(im.sum()) / im.size
     L = im.shape[axis]
-    J_mean = solver.flux(axis)
+    J_mean = solver.flux(axis, n_slices=n_flux_slices)
     D_eff_lu = J_mean * L  # delta_c = 1.0
     D_eff_norm = D_eff_lu / _d3q7.D
     if D_eff_norm > 0:

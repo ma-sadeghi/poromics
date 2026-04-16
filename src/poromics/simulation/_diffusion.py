@@ -75,7 +75,7 @@ class TransientDiffusion:
 
     # ── Execution ─────────────────────────────────────────────────────
 
-    def run(self, n_steps=100_000, tol=1e-2, log_every=500,
+    def run(self, n_steps=100_000, tol=1e-3, log_every=500,
             verbose=False):  # fmt: skip
         """Run the solver to steady state.
 
@@ -167,20 +167,24 @@ class TransientDiffusion:
         """
         return self._solver.get_concentration()
 
-    def flux(self, axis=None):
-        """Mean diffusive flux through the domain midplane (lattice units).
+    def flux(self, axis=None, n_slices=5):
+        """Mean diffusive flux averaged across interior slices (lattice units).
 
         Uses Fick's law on the concentration gradient rather than
         distribution moments (which are unreliable at Dirichlet faces).
-        Returns ``-D_lu * dc/dx_lu`` evaluated at the midplane, which
-        equals the normalized effective diffusivity D_eff/D_0 for
-        unit concentration drop across the domain.
+        Averages ``-D_lu * dc/dx_lu`` across ``n_slices`` slices evenly
+        spaced in the central 60% of the domain, which smooths out
+        local noise while avoiding boundary-layer artifacts. Equals
+        the normalized effective diffusivity D_eff/D_0 for a unit
+        concentration drop across the domain.
 
         Parameters
         ----------
         axis : int or None
             Axis along which to compute flux. Defaults to the
             axis used in the constructor.
+        n_slices : int
+            Number of interior slices to average. Default 5.
 
         Returns
         -------
@@ -188,4 +192,4 @@ class TransientDiffusion:
         """
         if axis is None:
             axis = self._axis
-        return self._solver.compute_flux(axis)
+        return self._solver.compute_flux(axis, n_slices=n_slices)

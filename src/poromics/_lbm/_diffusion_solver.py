@@ -127,36 +127,60 @@ class _D3Q7Solver:
         """Extract concentration field as NumPy array."""
         return self._c.to_numpy()
 
-    def compute_flux(self, axis):
-        """Compute diffusive flux at the domain midplane.
+    def compute_flux(self, axis, n_slices=5):
+        """Compute diffusive flux averaged across interior slices.
 
         Uses Fick's law (J = -D * dc/dx) on the concentration field
         rather than distribution moments, which are unreliable at
-        Dirichlet boundary faces.
+        Dirichlet boundary faces. Averaging across several interior
+        slices makes the estimate robust to local noise; we sample
+        ``n_slices`` slices evenly spaced in the middle 60% of the
+        domain, which excludes boundary-layer artifacts from the
+        inlet/outlet faces.
 
         Parameters
         ----------
         axis : int
             0=x, 1=y, 2=z.
+        n_slices : int
+            Number of interior slices to average. Default 5. Use 1 to
+            recover the single-midplane estimate.
 
         Returns
         -------
         J_mean : float
-            Mean diffusive flux through the midplane cross-section.
+            Mean diffusive flux through the averaged cross-section.
         """
+        if n_slices < 1:
+            raise ValueError(f"n_slices must be >= 1, got {n_slices}")
         c_np = self._c.to_numpy()
-        mid = c_np.shape[axis] // 2
-        slc_hi = [slice(None)] * 3
-        slc_lo = [slice(None)] * 3
-        slc_hi[axis] = mid
-        slc_lo[axis] = mid - 1
-        dc = c_np[tuple(slc_hi)] - c_np[tuple(slc_lo)]
         solid_np = self._solid.to_numpy()
-        # Mask out solid voxels on both sides of the cross-section
-        pore_mask = (solid_np[tuple(slc_hi)] == 0) & (solid_np[tuple(slc_lo)] == 0)
-        J = -self._D * dc
-        J[~pore_mask] = 0.0
-        return float(np.mean(J))
+        L = c_np.shape[axis]
+        # Need slc_lo >= 1 and slc_hi <= L-1 (each face is a Dirichlet BC).
+        # Sample evenly across the central 60% of the domain.
+        lo, hi = int(0.2 * L), int(0.8 * L)
+        # Guard tiny domains: keep at least one valid slice.
+        lo = max(lo, 1)
+        hi = max(hi, lo + 1)
+        if n_slices == 1:
+            indices = [(lo + hi) // 2]
+        else:
+            indices = np.linspace(lo, hi - 1, n_slices, dtype=int).tolist()
+
+        fluxes = []
+        for mid in indices:
+            slc_hi = [slice(None)] * 3
+            slc_lo = [slice(None)] * 3
+            slc_hi[axis] = mid
+            slc_lo[axis] = mid - 1
+            dc = c_np[tuple(slc_hi)] - c_np[tuple(slc_lo)]
+            pore_mask = (
+                (solid_np[tuple(slc_hi)] == 0) & (solid_np[tuple(slc_lo)] == 0)
+            )
+            J = -self._D * dc
+            J[~pore_mask] = 0.0
+            fluxes.append(float(np.mean(J)))
+        return float(np.mean(fluxes))
 
     # ── Taichi kernels ────────────────────────────────────────────────
 
