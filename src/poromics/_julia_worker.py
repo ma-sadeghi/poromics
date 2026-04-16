@@ -34,12 +34,18 @@ def _run_tortuosity_fd(im, axis, D, rtol, gpu, verbose):
 
     jl, taujl = _ensure_julia()
 
+    from poromics import julia_helpers
+
+    use_gpu = bool(gpu) and julia_helpers.ensure_gpu_backend(jl) is not None
     axis_jl = jl.Symbol(["x", "y", "z"][axis])
-    sim = taujl.TortuositySimulation(im, D=D, axis=axis_jl, gpu=gpu)
+    sim = taujl.SteadyDiffusionProblem(im, axis=axis_jl, D=D, gpu=use_gpu)
     sol = taujl.solve(sim.prob, taujl.KrylovJL_CG(), verbose=verbose, reltol=rtol)
-    c = taujl.vec_to_grid(sol.u, im)
-    tau = taujl.tortuosity(c, axis=axis_jl, D=D)
-    D_eff = taujl.effective_diffusivity(c, axis=axis_jl, D=D)
+    c = taujl.reconstruct_field(sol.u, im)
+    # Tortuosity.jl v0.0.6 requires a numeric D (default 1.0); don't forward
+    # Python None, which juliacall would turn into Julia `nothing`.
+    post_kwargs = {"axis": axis_jl} if D is None else {"axis": axis_jl, "D": D}
+    tau = taujl.tortuosity(c, im, **post_kwargs)
+    D_eff = taujl.effective_diffusivity(c, im, **post_kwargs)
 
     pore_mask = np.asarray(im, dtype=bool)
     porosity = float(pore_mask.sum()) / pore_mask.size

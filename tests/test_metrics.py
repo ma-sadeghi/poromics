@@ -2,6 +2,7 @@ import numpy as np
 import porespy as ps
 import pytest
 from poromics._metrics import tortuosity_fd
+from poromics import julia_helpers
 
 
 def test_tau_open_space():
@@ -61,6 +62,27 @@ def test_tau_variable_diffusivity_full_domain():
     result = tortuosity_fd(domain, D=D, axis=0, rtol=1e-5, gpu=False)
     # Check that the tortuosity is > 1 due to variable diffusivity
     assert result.tau > 1.0
+
+
+def test_gpu_unsupported_backend_falls_back_to_cpu(monkeypatch):
+    """With an unrecognized backend, tortuosity_fd should warn and run on CPU."""
+    from poromics import _metrics
+
+    monkeypatch.setenv("POROMICS_GPU_BACKEND", "bogus")
+    # Restart the Julia worker so the patched env is inherited by the subprocess.
+    _metrics._shutdown_julia_worker()
+    im = np.ones((6, 6, 6), dtype=bool)
+    result = tortuosity_fd(im, axis=0, rtol=1e-5)  # default gpu=True
+    assert np.isclose(result.tau, 1.0)
+
+
+def test_detect_gpu_backend_env_override(monkeypatch):
+    monkeypatch.setenv("POROMICS_GPU_BACKEND", "metal")
+    assert julia_helpers._detect_gpu_backend() == "Metal"
+    monkeypatch.setenv("POROMICS_GPU_BACKEND", "cuda")
+    assert julia_helpers._detect_gpu_backend() == "CUDA"
+    monkeypatch.setenv("POROMICS_GPU_BACKEND", "amdgpu")
+    assert julia_helpers._detect_gpu_backend() == "AMDGPU"
 
 
 def test_tau_variable_diffusivity_subdomain():

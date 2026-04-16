@@ -70,13 +70,19 @@ def _ensure_julia():
 
 def _tortuosity_fd_inprocess(im, axis, D, rtol, gpu, verbose):
     """Run the Julia FD solver in the current process."""
+    from poromics import julia_helpers
+
     jl, taujl = _ensure_julia()
+    use_gpu = bool(gpu) and julia_helpers.ensure_gpu_backend(jl) is not None
     axis_jl = jl.Symbol(["x", "y", "z"][axis])
-    sim = taujl.TortuositySimulation(im, D=D, axis=axis_jl, gpu=gpu)
+    sim = taujl.SteadyDiffusionProblem(im, axis=axis_jl, D=D, gpu=use_gpu)
     sol = taujl.solve(sim.prob, taujl.KrylovJL_CG(), verbose=verbose, reltol=rtol)
-    c = taujl.vec_to_grid(sol.u, im)
-    tau = taujl.tortuosity(c, axis=axis_jl, D=D)
-    D_eff = taujl.effective_diffusivity(c, axis=axis_jl, D=D)
+    c = taujl.reconstruct_field(sol.u, im)
+    # Tortuosity.jl v0.0.6 requires a numeric D (default 1.0); don't forward
+    # Python None, which juliacall would turn into Julia `nothing`.
+    post_kwargs = {"axis": axis_jl} if D is None else {"axis": axis_jl, "D": D}
+    tau = taujl.tortuosity(c, im, **post_kwargs)
+    D_eff = taujl.effective_diffusivity(c, im, **post_kwargs)
     porosity = float(im.sum()) / im.size
     formation_factor = 1.0 / D_eff if D_eff > 0 else float("inf")
     return TortuosityResult(
@@ -173,7 +179,7 @@ def tortuosity_fd(
     axis: int,
     D: np.ndarray | None = None,
     rtol: float = 1e-5,
-    gpu: bool = False,
+    gpu: bool = True,
     verbose: bool = True,
 ) -> "TortuosityResult":
     """Compute tortuosity via Julia FD solver.
@@ -197,7 +203,12 @@ def tortuosity_fd(
     rtol : float
         Relative tolerance for the solver.
     gpu : bool
-        If True, use GPU for computation.
+        If True (default), use GPU for computation. Poromics picks a backend
+        based on the platform (Darwin/arm64 → Metal, Linux/x86_64 → CUDA,
+        Windows/AMD64 → CUDA) and installs it lazily on first call. Set
+        ``POROMICS_GPU_BACKEND={metal,cuda,amdgpu}`` to override. When no
+        supported backend is available or the device isn't functional, falls
+        back to CPU with a warning. Set to False to force CPU.
     verbose : bool
         If True, print additional information during the solution process.
 
