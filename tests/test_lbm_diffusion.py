@@ -55,3 +55,28 @@ def test_tau_lbm_converged_false_when_steps_exhausted():
     assert result.converged is False
     assert result.n_iterations > 0
     assert any("did not converge" in m for m in messages)
+
+
+def test_tau_lbm_sparse_matches_dense():
+    """sparse=True must yield the same tau as sparse=False on a non-trivial geometry.
+
+    Skips if the Taichi backend does not support pointer SNode (e.g. Metal).
+    Probing sparse allocation directly would corrupt Taichi's global
+    field registry on unsupported backends, so we query the arch name.
+    """
+    from poromics._lbm._taichi_helpers import ensure_taichi
+
+    ti = ensure_taichi()
+    try:
+        arch = str(ti.lang.impl.current_cfg().arch).split(".")[-1].lower()
+    except Exception as e:
+        pytest.skip(f"could not query Taichi arch ({e}); skipping sparse test")
+    if arch not in ("cpu", "x64", "arm64", "cuda"):
+        pytest.skip(f"sparse storage not supported on Taichi backend '{arch}'")
+
+    im = np.zeros((20, 20, 20), dtype=bool)
+    im[5:, :, :] = True  # half-open channel
+    kwargs = dict(axis=0, voxel_size=1.0, n_steps=5000, tol=1e-3)
+    r_dense = tortuosity_lbm(im, sparse=False, **kwargs)
+    r_sparse = tortuosity_lbm(im, sparse=True, **kwargs)
+    assert r_sparse.tau == pytest.approx(r_dense.tau, rel=1e-3)

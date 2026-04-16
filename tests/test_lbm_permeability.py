@@ -374,6 +374,47 @@ class PressureUnitsTest:
         )
 
 
+def _skip_if_sparse_unsupported():
+    """Skip the current test if the active Taichi backend rejects pointer SNode.
+
+    Probing sparse allocation directly would corrupt Taichi's global
+    field registry on unsupported backends (Metal / Vulkan / OpenGL)
+    and break every subsequent test. We query the active arch instead.
+    """
+    from poromics._lbm._taichi_helpers import ensure_taichi
+
+    ti = ensure_taichi()
+    try:
+        arch = str(ti.lang.impl.current_cfg().arch).split(".")[-1].lower()
+    except Exception as e:
+        pytest.skip(f"could not query Taichi arch ({e}); skipping sparse test")
+    if arch not in ("cpu", "x64", "arm64", "cuda"):
+        pytest.skip(f"sparse storage not supported on Taichi backend '{arch}'")
+
+
+class SparseModeTest:
+    """Check that sparse=True produces the same physics as dense.
+
+    Taichi's pointer SNode is CUDA/CPU-only (not Metal / Vulkan / OpenGL).
+    """
+
+    def test_sparse_matches_dense_permeability(self):
+        """sparse=True must yield numerically equivalent k and velocity."""
+        _skip_if_sparse_unsupported()
+        # Non-trivial geometry so sparsity actually matters, not open space.
+        im = _make_cylinder(L=40, N=20, R=6)
+        kwargs = dict(axis=0, voxel_size=1.0, n_steps=2000, tol=1e-4)
+        r_dense = permeability_lbm(im, sparse=False, **kwargs)
+        r_sparse = permeability_lbm(im, sparse=True, **kwargs)
+        assert r_sparse.k == pytest.approx(r_dense.k, rel=1e-4)
+        np.testing.assert_allclose(
+            r_sparse.velocity[im], r_dense.velocity[im], rtol=1e-4, atol=1e-10
+        )
+        # Sanity: solid voxels should still be zero in both
+        solid = ~im
+        np.testing.assert_allclose(r_sparse.velocity[solid], 0.0)
+
+
 class ConvergenceSignalTest:
     """Regression tests for exposing convergence state on results."""
 
