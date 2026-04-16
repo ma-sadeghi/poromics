@@ -46,16 +46,38 @@ print(f"Permeability: {result.k:.4e} m²")
 
 `permeability_lbm` returns a `PermeabilityResult`:
 
-| Attribute   | Description                                |
-|-------------|--------------------------------------------|
-| `im`        | Boolean image used in the simulation       |
-| `axis`      | Axis along which the simulation was run    |
-| `porosity`  | Pore volume fraction                       |
-| `k`         | Permeability in m$^2$                      |
-| `u_darcy`   | Darcy (superficial) velocity in m/s        |
-| `u_pore`    | Mean pore-space velocity in m/s            |
-| `velocity`  | Steady-state velocity field (m/s)          |
-| `pressure`  | Gauge pressure field (Pa)                  |
+| Attribute            | Description                                               |
+|----------------------|-----------------------------------------------------------|
+| `im`                 | Boolean image used in the simulation                      |
+| `axis`               | Axis along which the simulation was run                   |
+| `porosity`           | Pore volume fraction                                      |
+| `k`                  | Permeability in m$^2$                                     |
+| `u_darcy`            | Darcy (superficial) velocity in m/s                       |
+| `u_pore`             | Mean pore-space velocity in m/s                           |
+| `velocity`           | Steady-state velocity field (m/s)                         |
+| `kinematic_pressure` | Gauge $p/\rho$ field (m$^2$/s$^2$), density-free          |
+| `pressure`           | Gauge pressure field (Pa); `None` unless `rho` was given  |
+| `converged`          | Whether the solver reached the requested tolerance        |
+| `n_iterations`       | Number of LBM iterations taken                            |
+
+!!! warning "Check `converged` before trusting `k`"
+    The solver stops iterating once the velocity change per step falls
+    below `tol`, or when `n_steps` is exhausted. If the maximum step
+    count is reached without convergence, `permeability_lbm` emits a
+    warning and sets `result.converged = False`; the reported `k` is
+    then from a pre-steady-state field. Always check this flag on
+    tight geometries, and consider raising `n_steps` or loosening
+    `tol`.
+
+!!! note "Pressure requires a fluid density"
+    The LBM equation of state is $p = \rho\,c_s^2$, so converting
+    lattice density to pascals requires knowing the fluid density
+    $\rho$. Pass `rho=...` (kg/m³) to `permeability_lbm` to populate
+    `result.pressure` in Pa. Without it, only `kinematic_pressure`
+    ($p/\rho$, in m$^2$/s$^2$) is available — sufficient for plotting
+    relative pressure gradients, but not absolute pressures.
+    Permeability and velocity are independent of density in the Stokes
+    regime, so the default `rho=None` is fine for those.
 
 ## Rescaling to different physical parameters
 

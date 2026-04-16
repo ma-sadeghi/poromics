@@ -47,6 +47,15 @@ print(f"Formation factor: {result.formation_factor:.4f}")
 | `c`                | Steady-state concentration field               |
 | `formation_factor` | Formation factor $F = 1 / D_\text{eff}$        |
 | `D`                | Bulk diffusivity                               |
+| `converged`        | Whether the solver reached the requested tolerance |
+| `n_iterations`     | Number of LBM iterations taken (None for the FD solver) |
+
+!!! warning "Check `converged` before trusting `tau`"
+    If the maximum step count is reached without convergence,
+    `tortuosity_lbm` emits a warning and sets `result.converged =
+    False`; the reported `tau` is then from a pre-steady-state field.
+    Always check this flag on slow-to-converge geometries, and
+    consider raising `n_steps` or loosening `tol`.
 
 !!! note
     Unlike `PermeabilityResult`, `TortuosityResult` does not have a `rescale` method. Tortuosity, effective diffusivity, and the concentration field are all dimensionless quantities that do not depend on physical units.
