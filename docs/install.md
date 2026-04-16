@@ -2,6 +2,8 @@
 
 To install `poromics`, you can use `pip`, but we highly recommend using `uv` instead, as it is significantly faster. `uv` is a drop-in replacement for `pip`, so you can use it in the same way.
 
+The LBM solvers (`tortuosity_lbm`, `permeability_lbm`) use [Taichi](https://www.taichi-lang.org/), which is installed as a dependency. The Julia-based FD solver (`tortuosity_fd`) additionally requires Julia and [Tortuosity.jl](https://github.com/ma-sadeghi/Tortuosity.jl/), which are installed automatically on first use.
+
 ## Using `uv`
 
 1. Install [`uv`](https://docs.astral.sh/uv/getting-started/installation/).

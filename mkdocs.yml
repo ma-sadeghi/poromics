@@ -4,7 +4,7 @@ repo_url: https://github.com/ma-sadeghi/poromics/
 
 theme:
   name: material
-  logo: assets/logo.png
+  logo: assets/logo-old.png
   palette:
     # Palette toggle for light mode
     - primary: deep purple
@@ -18,9 +18,9 @@ theme:
         icon: material/brightness-4
         name: Switch to light mode
   font:
-    text: Roboto
+    text: IBM Plex Sans
   features:
-    # - navigation.tabs  # Enable tabs in the navigation bar, but breaks sidebar
+    - navigation.tabs
     - navigation.top
     - navigation.expand
     - navigation.sections
@@ -34,11 +34,34 @@ strict: false
 
 plugins:
   - search
-  - mkdocstrings
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            docstring_style: numpy
+            backlinks: tree
+            docstring_options:
+              ignore_init_summary: true
+            docstring_section_style: list
+            filters: ["!^_"]
+            heading_level: 1
+            inherited_members: true
+            merge_init_into_class: true
+            parameter_headings: true
+            separate_signature: true
+            show_root_heading: true
+            show_root_full_path: false
+            show_signature_annotations: true
+            show_source: true
+            show_symbol_type_heading: true
+            show_symbol_type_toc: true
+            signature_crossrefs: true
+            summary: true            
   - mkdocs_matplotlib
   - markdown-exec
   - mkdocs-jupyter:
-      theme: dark
+      theme: light
+      execute: false
 
 markdown_extensions:
   - admonition
@@ -46,7 +69,8 @@ markdown_extensions:
   - def_list
   - footnotes
   - md_in_html
-  - pymdownx.arithmatex
+  - pymdownx.arithmatex:
+      generic: true
   - pymdownx.blocks.caption
   - pymdownx.details
   - pymdownx.highlight:
@@ -56,13 +80,31 @@ markdown_extensions:
       custom_checkbox: true
 
 extra_javascript:
-  - https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML
+  - javascripts/mathjax.js
+  - https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js
 
 docs_dir: docs
 
 nav:
-  - About: "index.md"
-  - Installation: "install.md"
-  - Basic usage: "usage.md"
-  - API reference: "reference.md"
-  - Contributing: "contributing.md"
+  - Home:
+    - Overview: "index.md"
+    - Roadmap: "roadmap.md"
+    - Acknowledgments: "acknowledgments.md"
+    - Contributing: "contributing.md"
+  - Getting Started:
+    - Installation: "install.md"
+    - Quick Start: "getting-started.md"
+  - Solvers:
+    - Overview: "solvers/index.md"
+    - Tortuosity (FDM): "solvers/tortuosity-fd.md"
+    - Tortuosity (LBM): "solvers/tortuosity-lbm.md"
+    - Permeability (LBM): "solvers/permeability-lbm.md"
+  - Examples:
+    - Overview: "examples/index.md"
+    - Tortuosity (FDM): "examples/diffusion-fd.ipynb"
+    - Tortuosity (LBM): "examples/diffusion-lbm.ipynb"
+    - Permeability (LBM): "examples/flow-lbm.ipynb"
+    - Rescaling Results: "examples/rescaling.ipynb"
+  - Reference:
+    - API: "reference.md"
+    - Simulation API: "simulation.md"
