@@ -222,7 +222,10 @@ class _D3Q7Solver:
         ti = self._ti
 
         @ti.kernel
-        def kernel(solid: ti.template(), c: ti.template(), g: ti.template(), G: ti.template(), w: ti.template(), sparse: ti.template(),):  # fmt: skip
+        def kernel(
+            solid: ti.template(), c: ti.template(), g: ti.template(),
+            G: ti.template(), w: ti.template(), sparse: ti.template(),
+        ):  # fmt: skip
             for i, j, k in solid:
                 if (not sparse) or (solid[i, j, k] == 0):
                     c[i, j, k] = 0.5
@@ -240,7 +243,10 @@ class _D3Q7Solver:
         # ── Fused finalize + BGK collision ────────────────────────────
 
         @ti.kernel
-        def finalize_collide(solid: ti.template(), c: ti.template(), g: ti.template(), G: ti.template(), w: ti.template(), tau_D: float,):  # fmt: skip
+        def finalize_collide(
+            solid: ti.template(), c: ti.template(), g: ti.template(),
+            G: ti.template(), w: ti.template(), tau_D: float,
+        ):  # fmt: skip
             for i in ti.grouped(c):
                 if solid[i] == 0:
                     # Finalize: compute c from post-stream distributions
@@ -255,7 +261,10 @@ class _D3Q7Solver:
         # ── Streaming with periodic BCs and bounce-back ───────────────
 
         @ti.kernel
-        def stream(solid: ti.template(), g: ti.template(), G: ti.template(), e: ti.template(), nx_: int, ny_: int, nz_: int,):  # fmt: skip
+        def stream(
+            solid: ti.template(), g: ti.template(), G: ti.template(),
+            e: ti.template(), nx_: int, ny_: int, nz_: int,
+        ):  # fmt: skip
             for i in ti.grouped(g):
                 if solid[i] == 0:
                     for s in ti.static(range(7)):
@@ -280,21 +289,30 @@ class _D3Q7Solver:
         # ── Dirichlet BCs (one kernel per axis) ──────────────────────
 
         @ti.kernel
-        def bc_x(solid_: ti.template(), G_: ti.template(), w_: ti.template(), idx_: int, c_bc_: float, ny_: int, nz_: int,):  # fmt: skip
+        def bc_x(
+            solid_: ti.template(), G_: ti.template(), w_: ti.template(),
+            idx_: int, c_bc_: float, ny_: int, nz_: int,
+        ):  # fmt: skip
             for j, k in ti.ndrange((0, ny_), (0, nz_)):
                 if solid_[idx_, j, k] == 0:
                     for s in ti.static(range(7)):
                         G_[idx_, j, k][s] = w_[s] * c_bc_
 
         @ti.kernel
-        def bc_y(solid_: ti.template(), G_: ti.template(), w_: ti.template(), idx_: int, c_bc_: float, nx_: int, nz_: int,):  # fmt: skip
+        def bc_y(
+            solid_: ti.template(), G_: ti.template(), w_: ti.template(),
+            idx_: int, c_bc_: float, nx_: int, nz_: int,
+        ):  # fmt: skip
             for i, k in ti.ndrange((0, nx_), (0, nz_)):
                 if solid_[i, idx_, k] == 0:
                     for s in ti.static(range(7)):
                         G_[i, idx_, k][s] = w_[s] * c_bc_
 
         @ti.kernel
-        def bc_z(solid_: ti.template(), G_: ti.template(), w_: ti.template(), idx_: int, c_bc_: float, nx_: int, ny_: int,):  # fmt: skip
+        def bc_z(
+            solid_: ti.template(), G_: ti.template(), w_: ti.template(),
+            idx_: int, c_bc_: float, nx_: int, ny_: int,
+        ):  # fmt: skip
             for i, j in ti.ndrange((0, nx_), (0, ny_)):
                 if solid_[i, j, idx_] == 0:
                     for s in ti.static(range(7)):

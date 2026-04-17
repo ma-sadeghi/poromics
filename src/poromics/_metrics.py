@@ -306,7 +306,9 @@ class TortuosityResult(SimulationResult):
         Iterations the solver took. None for non-iterative backends.
     """
 
-    def __init__(self, im, axis, porosity, tau, D_eff, c, formation_factor=None, D=None, *,converged=True, n_iterations=None):  # fmt: skip
+    def __init__(self, im, axis, porosity, tau, D_eff, c,
+                 formation_factor=None, D=None, *,
+                 converged=True, n_iterations=None):  # fmt: skip
         super().__init__(im, axis, porosity)
         self.tau = tau
         self.D_eff = D_eff
@@ -426,7 +428,12 @@ class PermeabilityResult(SimulationResult):
         Iterations the solver took. None for non-iterative backends.
     """
 
-    def __init__(self, im, axis, porosity, k, u_darcy, u_pore, velocity, kinematic_pressure, pressure=None, *, converged=True, n_iterations=None, _velocity_lu=None, _rho_lu=None, _rho_out=None, _k_lu=None, _u_darcy_lu=None,_u_pore_lu=None):  # fmt: skip
+    def __init__(self, im, axis, porosity, k, u_darcy, u_pore,
+                 velocity, kinematic_pressure, pressure=None, *,
+                 converged=True, n_iterations=None,
+                 _velocity_lu=None, _rho_lu=None, _rho_out=None,
+                 _k_lu=None, _u_darcy_lu=None,
+                 _u_pore_lu=None):  # fmt: skip
         super().__init__(im, axis, porosity)
         self.k = k
         self.u_darcy = u_darcy

@@ -245,7 +245,11 @@ class _D3Q19Solver:
         ti = self._ti
 
         @ti.kernel
-        def kernel(solid: ti.template(), rho: ti.template(), v: ti.template(), f: ti.template(), F: ti.template(), w: ti.template(), sparse: ti.template(),):  # fmt: skip
+        def kernel(
+            solid: ti.template(), rho: ti.template(), v: ti.template(),
+            f: ti.template(), F: ti.template(), w: ti.template(),
+            sparse: ti.template(),
+        ):  # fmt: skip
             for i, j, k in solid:
                 if (not sparse) or (solid[i, j, k] == 0):
                     rho[i, j, k] = 1.0
@@ -264,7 +268,11 @@ class _D3Q19Solver:
         # ── Fused finalize + collision ────────────────────────────────
 
         @ti.kernel
-        def finalize_collide(solid: ti.template(), rho: ti.template(), v: ti.template(), f: ti.template(), F: ti.template(), M: ti.template(), inv_M: ti.template(), S_dig: ti.template(), e_f: ti.template(),):  # fmt: skip
+        def finalize_collide(
+            solid: ti.template(), rho: ti.template(), v: ti.template(),
+            f: ti.template(), F: ti.template(), M: ti.template(),
+            inv_M: ti.template(), S_dig: ti.template(), e_f: ti.template(),
+        ):  # fmt: skip
             for i in ti.grouped(rho):
                 if solid[i] == 0:
                     # Compute macroscopic rho and u from F
@@ -304,7 +312,10 @@ class _D3Q19Solver:
         # ── Streaming with periodic BCs and bounce-back ───────────────
 
         @ti.kernel
-        def stream(solid: ti.template(), f: ti.template(), F: ti.template(), e: ti.template(), nx_: int, ny_: int, nz_: int,):  # fmt: skip
+        def stream(
+            solid: ti.template(), f: ti.template(), F: ti.template(),
+            e: ti.template(), nx_: int, ny_: int, nz_: int,
+        ):  # fmt: skip
             for i in ti.grouped(f):
                 if solid[i] == 0:
                     for s in ti.static(range(19)):
@@ -329,7 +340,11 @@ class _D3Q19Solver:
         # ── Equilibrium pressure BCs (one kernel per axis) ────────────
 
         @ti.kernel
-        def bc_x(solid_: ti.template(), F_: ti.template(), v_: ti.template(), w_: ti.template(), e_f_: ti.template(), idx_: int, nb_: int, rho_bc_: float, ny_: int, nz_: int,):  # fmt: skip
+        def bc_x(
+            solid_: ti.template(), F_: ti.template(), v_: ti.template(),
+            w_: ti.template(), e_f_: ti.template(),
+            idx_: int, nb_: int, rho_bc_: float, ny_: int, nz_: int,
+        ):  # fmt: skip
             for j, k in ti.ndrange((0, ny_), (0, nz_)):
                 if solid_[idx_, j, k] == 0:
                     u = v_[idx_, j, k]
@@ -343,7 +358,11 @@ class _D3Q19Solver:
                         )
 
         @ti.kernel
-        def bc_y(solid_: ti.template(), F_: ti.template(), v_: ti.template(), w_: ti.template(), e_f_: ti.template(), idx_: int, nb_: int, rho_bc_: float, nx_: int, nz_: int,):  # fmt: skip
+        def bc_y(
+            solid_: ti.template(), F_: ti.template(), v_: ti.template(),
+            w_: ti.template(), e_f_: ti.template(),
+            idx_: int, nb_: int, rho_bc_: float, nx_: int, nz_: int,
+        ):  # fmt: skip
             for i, k in ti.ndrange((0, nx_), (0, nz_)):
                 if solid_[i, idx_, k] == 0:
                     u = v_[i, idx_, k]
@@ -357,7 +376,11 @@ class _D3Q19Solver:
                         )
 
         @ti.kernel
-        def bc_z(solid_: ti.template(), F_: ti.template(), v_: ti.template(), w_: ti.template(), e_f_: ti.template(), idx_: int, nb_: int, rho_bc_: float, nx_: int, ny_: int):  # fmt: skip
+        def bc_z(
+            solid_: ti.template(), F_: ti.template(), v_: ti.template(),
+            w_: ti.template(), e_f_: ti.template(),
+            idx_: int, nb_: int, rho_bc_: float, nx_: int, ny_: int,
+        ):  # fmt: skip
             for i, j in ti.ndrange((0, nx_), (0, ny_)):
                 if solid_[i, j, idx_] == 0:
                     u = v_[i, j, idx_]

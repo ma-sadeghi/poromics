@@ -108,3 +108,4 @@ nav:
   - Reference:
     - API: "reference.md"
     - Simulation API: "simulation.md"
+  - FAQ: "faq.md"
