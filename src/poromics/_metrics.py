@@ -42,6 +42,10 @@ _JULIA_SUBPROCESS = os.environ.get("POROMICS_JULIA_SUBPROCESS", "1") == "1"
 
 os.environ["PYTHON_JULIACALL_STARTUP_FILE"] = "no"
 os.environ["PYTHON_JULIACALL_AUTOLOAD_IPYTHON_EXTENSION"] = "no"
+# juliacall defaults --handle-signals=no; without Julia's signal handlers,
+# first-call GPU init on Darwin/Metal aborts with SIGBUS ~60% of the time.
+# Tradeoff: Ctrl-C won't raise KeyboardInterrupt while Julia is running.
+os.environ.setdefault("PYTHON_JULIACALL_HANDLE_SIGNALS", "yes")
 
 _jl = None
 _taujl = None

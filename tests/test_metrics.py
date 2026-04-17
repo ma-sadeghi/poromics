@@ -1,3 +1,7 @@
+import subprocess
+import sys
+import textwrap
+
 import numpy as np
 import porespy as ps
 import pytest
@@ -98,3 +102,54 @@ def test_tau_variable_diffusivity_subdomain():
     result = tortuosity_fd(domain, D=D, axis=0, rtol=1e-5, gpu=False)
     # Check that the tortuosity is > 1 due to variable diffusivity
     assert result.tau > 1.0
+
+
+def test_tau_open_space_gpu():
+    """τ must equal 1.0 on open space even on the GPU path.
+
+    Regression against the Tortuosity.jl v0.0.6 atomic-kernel bug that made
+    Metal return τ ≈ 0.3-0.9 on open cubes. Falls back to CPU silently on
+    platforms without a functional GPU backend; the assertion still catches
+    numerical regressions on the CPU path.
+    """
+    im = np.ones((10, 10, 10), dtype=bool)
+    for axis in (0, 1, 2):
+        result = tortuosity_fd(im, axis=axis, rtol=1e-5, gpu=True, verbose=False)
+        assert np.isclose(result.tau, 1.0), f"axis={axis}: tau={result.tau}"
+
+
+def test_tortuosity_fd_gpu_no_sigbus_across_fresh_processes(tmp_path):
+    """Regression test for juliacall --handle-signals=no SIGBUS.
+
+    Before setting PYTHON_JULIACALL_HANDLE_SIGNALS=yes, fresh Python
+    processes aborted ~60% of the time during Metal initialization on
+    Darwin/arm64. Spawns several fresh subprocesses and asserts every one
+    exits cleanly. Skipped when no GPU backend is configured — the test
+    is meaningful only on a machine where Metal/CUDA/AMDGPU is actually
+    exercised.
+    """
+    if julia_helpers._detect_gpu_backend() is None:
+        pytest.skip("no GPU backend for this platform/override")
+    script = tmp_path / "gpu_probe.py"
+    script.write_text(textwrap.dedent("""
+        import numpy as np
+        from poromics import tortuosity_fd
+        im = np.ones((6, 6, 6), dtype=bool)
+        r = tortuosity_fd(im, axis=0, rtol=1e-5, gpu=True, verbose=False)
+        assert 0.99 < r.tau < 1.01, f"tau out of range: {r.tau}"
+    """))
+    n_runs = 5
+    failures = []
+    for i in range(n_runs):
+        proc = subprocess.run(
+            [sys.executable, str(script)], capture_output=True, timeout=300
+        )
+        if proc.returncode != 0:
+            failures.append(
+                f"run {i}: exit={proc.returncode}\n"
+                f"stderr={proc.stderr.decode(errors='replace')[-500:]}"
+            )
+    assert not failures, (
+        f"{len(failures)}/{n_runs} fresh-process runs failed:\n"
+        + "\n---\n".join(failures)
+    )
