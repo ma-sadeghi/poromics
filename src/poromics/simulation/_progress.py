@@ -25,9 +25,11 @@ def make_progress(n_steps, tol, label):
     -------
     pbar : tqdm
     """
-    pbar = tqdm(total=100, desc=label, bar_format=(
-        "{l_bar}{bar}| {n:.1f}% · {postfix} · {elapsed}"
-    ))
+    pbar = tqdm(
+        total=100,
+        desc=label,
+        bar_format=("{l_bar}{bar}| {n:.1f}% · {postfix} · {elapsed}"),
+    )
     pbar.set_postfix_str("starting...")
     return pbar
 

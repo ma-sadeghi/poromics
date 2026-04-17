@@ -10,7 +10,6 @@ import juliapkg
 from juliapkg.deps import can_skip_resolve
 from juliapkg.find_julia import find_julia
 from loguru import logger
-from tqdm.auto import tqdm
 
 from .utils import suppress_output
 
@@ -144,7 +143,9 @@ def is_julia_installed(error: bool = False) -> bool:
     # Look for local Julia executable (e.g., installed by juliapkg)
     if can_skip_resolve():
         return True
-    msg = "Julia not found. Visit https://github.com/JuliaLang/juliaup and install Julia."
+    msg = (
+        "Julia not found. Visit https://github.com/JuliaLang/juliaup and install Julia."
+    )
     if error:
         raise ImportError(msg)
     return False

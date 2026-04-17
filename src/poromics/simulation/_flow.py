@@ -51,8 +51,7 @@ class TransientFlow:
     >>> Pk = solver.kinematic_pressure # m²/s² (density-free)
     """
 
-    def __init__(self, im, axis, nu, voxel_size, rho=None, rho_in=1.0,
-                 rho_out=0.99, sparse=False):  # fmt: skip
+    def __init__(self, im, axis, nu, voxel_size, rho=None, rho_in=1.0,rho_out=0.99, sparse=False):  # fmt: skip
         if axis not in (0, 1, 2):
             raise ValueError(f"axis must be 0, 1, or 2, got {axis}")
         if nu <= 0:
@@ -88,8 +87,7 @@ class TransientFlow:
 
     # ── Execution ─────────────────────────────────────────────────────
 
-    def run(self, n_steps=100_000, tol=1e-3, log_every=500,
-            verbose=False):  # fmt: skip
+    def run(self, n_steps=100_000, tol=1e-3, log_every=500,verbose=False):  # fmt: skip
         """Run the solver to steady state.
 
         Parameters

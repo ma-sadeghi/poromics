@@ -36,6 +36,7 @@ def _trim_nonpercolating(im, axis):
     outlets = ps.generators.faces(im.shape, outlet=axis)
     return ps.filters.trim_nonpercolating_paths(im, inlets=inlets, outlets=outlets)
 
+
 _JULIA_SUBPROCESS = os.environ.get("POROMICS_JULIA_SUBPROCESS", "1") == "1"
 
 # ── In-process Julia (used when POROMICS_JULIA_SUBPROCESS=0) ─────────
@@ -229,10 +230,14 @@ def tortuosity_fd(
     n_pore_before = int(im.sum())
     im = _trim_nonpercolating(im, axis)
     if im.sum() == 0:
-        raise RuntimeError("No percolating paths along the given axis found in the image.")
+        raise RuntimeError(
+            "No percolating paths along the given axis found in the image."
+        )
     n_removed = n_pore_before - int(im.sum())
     if n_removed > 0:
-        logger.warning(f"Trimmed {n_removed} non-percolating pore voxels from the image.")
+        logger.warning(
+            f"Trimmed {n_removed} non-percolating pore voxels from the image."
+        )
         if D is not None:
             D = np.array(D, copy=True)
             D[~im] = 0.0
@@ -305,9 +310,7 @@ class TortuosityResult(SimulationResult):
         Iterations the solver took. None for non-iterative backends.
     """
 
-    def __init__(self, im, axis, porosity, tau, D_eff, c,
-                 formation_factor=None, D=None, *,
-                 converged=True, n_iterations=None):  # fmt: skip
+    def __init__(self, im, axis, porosity, tau, D_eff, c, formation_factor=None, D=None, *,converged=True, n_iterations=None):  # fmt: skip
         super().__init__(im, axis, porosity)
         self.tau = tau
         self.D_eff = D_eff
@@ -325,9 +328,9 @@ class TortuosityResult(SimulationResult):
             f"  tau        = {self.tau:.4f}",
             f"  D_eff/D    = {self.D_eff:.6f}",
             f"  F          = {self.formation_factor:.4f}",
-            f"  converged  = {self.converged}" + (
-                f" ({self.n_iterations} iters)"
-                if self.n_iterations is not None else ""
+            f"  converged  = {self.converged}"
+            + (
+                f" ({self.n_iterations} iters)" if self.n_iterations is not None else ""
             ),
         ]
         return "\n".join(lines)
@@ -364,7 +367,9 @@ class TortuosityResult(SimulationResult):
         if ax is not None:
             mappable = ax.imshow(c_slice, cmap="viridis", interpolation="nearest")
             ax.set_title("Concentration field")
-            cb = ax.figure.colorbar(mappable, ax=ax, fraction=0.046, pad=0.04, label="c")
+            cb = ax.figure.colorbar(
+                mappable, ax=ax, fraction=0.046, pad=0.04, label="c"
+            )
             cb.ax.yaxis.set_major_formatter(ticker.ScalarFormatter(useMathText=True))
             cb.ax.ticklabel_format(style="scientific", scilimits=(-1, 1))
             return ax.figure, ax
@@ -429,12 +434,7 @@ class PermeabilityResult(SimulationResult):
         Iterations the solver took. None for non-iterative backends.
     """
 
-    def __init__(self, im, axis, porosity, k, u_darcy, u_pore,
-                 velocity, kinematic_pressure, pressure=None, *,
-                 converged=True, n_iterations=None,
-                 _velocity_lu=None, _rho_lu=None, _rho_out=None,
-                 _k_lu=None, _u_darcy_lu=None,
-                 _u_pore_lu=None):  # fmt: skip
+    def __init__(self, im, axis, porosity, k, u_darcy, u_pore, velocity, kinematic_pressure, pressure=None, *, converged=True, n_iterations=None, _velocity_lu=None, _rho_lu=None, _rho_out=None, _k_lu=None, _u_darcy_lu=None,_u_pore_lu=None):  # fmt: skip
         super().__init__(im, axis, porosity)
         self.k = k
         self.u_darcy = u_darcy
@@ -476,9 +476,7 @@ class PermeabilityResult(SimulationResult):
         result : PermeabilityResult
         """
         if self._velocity_lu is None:
-            raise RuntimeError(
-                "Lattice-unit data not available for rescaling."
-            )
+            raise RuntimeError("Lattice-unit data not available for rescaling.")
         dt = _d3q19.nu * voxel_size**2 / nu
         lu_to_phys = voxel_size / dt
         k = self._k_lu * voxel_size**2
@@ -489,13 +487,21 @@ class PermeabilityResult(SimulationResult):
         kinematic_pressure = _d3q19.cs2 * lu_to_phys**2 * gauge_rho
         pressure = rho * kinematic_pressure if rho is not None else None
         return PermeabilityResult(
-            im=self.im, axis=self.axis, porosity=self.porosity,
-            k=k, u_darcy=u_darcy, u_pore=u_pore,
-            velocity=velocity, kinematic_pressure=kinematic_pressure,
-            pressure=pressure, converged=self.converged,
+            im=self.im,
+            axis=self.axis,
+            porosity=self.porosity,
+            k=k,
+            u_darcy=u_darcy,
+            u_pore=u_pore,
+            velocity=velocity,
+            kinematic_pressure=kinematic_pressure,
+            pressure=pressure,
+            converged=self.converged,
             n_iterations=self.n_iterations,
-            _velocity_lu=self._velocity_lu, _rho_lu=self._rho_lu,
-            _rho_out=self._rho_out, _k_lu=self._k_lu,
+            _velocity_lu=self._velocity_lu,
+            _rho_lu=self._rho_lu,
+            _rho_out=self._rho_out,
+            _k_lu=self._k_lu,
             _u_darcy_lu=self._u_darcy_lu,
             _u_pore_lu=self._u_pore_lu,
         )
@@ -509,13 +515,12 @@ class PermeabilityResult(SimulationResult):
             f"  k          = {self.k:.4e} m\u00b2 ({k_mD:.2f} mD)",
             f"  u_darcy    = {self.u_darcy:.4e} m/s",
             f"  u_pore     = {self.u_pore:.4e} m/s",
-            f"  converged  = {self.converged}" + (
-                f" ({self.n_iterations} iters)"
-                if self.n_iterations is not None else ""
+            f"  converged  = {self.converged}"
+            + (
+                f" ({self.n_iterations} iters)" if self.n_iterations is not None else ""
             ),
         ]
         return "\n".join(lines)
-
 
     def plot_velocity(self, z=None, ax=None):
         """Plot velocity magnitude and streamlines on a 2D slice.
@@ -551,7 +556,9 @@ class PermeabilityResult(SimulationResult):
         if ax is not None:
             mappable = ax.imshow(speed_masked, cmap="viridis", interpolation="nearest")
             ax.set_title("Velocity magnitude")
-            cb = ax.figure.colorbar(mappable, ax=ax, fraction=0.046, pad=0.04, label="|u| (m/s)")
+            cb = ax.figure.colorbar(
+                mappable, ax=ax, fraction=0.046, pad=0.04, label="|u| (m/s)"
+            )
             cb.ax.yaxis.set_major_formatter(ticker.ScalarFormatter(useMathText=True))
             cb.ax.ticklabel_format(style="scientific", scilimits=(-1, 1))
             return ax.figure, ax
@@ -559,7 +566,9 @@ class PermeabilityResult(SimulationResult):
         from mpl_toolkits.axes_grid1 import make_axes_locatable
 
         fig, axes = plt.subplots(1, 2, figsize=(7.5, 4))
-        mappable0 = axes[0].imshow(speed_masked, cmap="viridis", interpolation="nearest")
+        mappable0 = axes[0].imshow(
+            speed_masked, cmap="viridis", interpolation="nearest"
+        )
         axes[0].set_title("Velocity magnitude")
         div0 = make_axes_locatable(axes[0])
         cax0 = div0.append_axes("right", size="5%", pad=0.05)
@@ -572,8 +581,15 @@ class PermeabilityResult(SimulationResult):
         lw = 3 * speed / speed.max() + 0.1 if speed.max() > 0 else np.ones_like(speed)
         axes[1].imshow(im[:, :, z], cmap="gray", interpolation="nearest", alpha=0.3)
         axes[1].streamplot(
-            X, Y, v[:, :, 1], v[:, :, 0], color=speed,
-            cmap="viridis", density=2, linewidth=lw, arrowstyle="fancy",
+            X,
+            Y,
+            v[:, :, 1],
+            v[:, :, 0],
+            color=speed,
+            cmap="viridis",
+            density=2,
+            linewidth=lw,
+            arrowstyle="fancy",
         )
         axes[1].set_xlim(-0.5, ny - 0.5)
         axes[1].set_ylim(nx - 0.5, -0.5)
@@ -634,6 +650,7 @@ class PermeabilityResult(SimulationResult):
         else:
             fig = ax.figure
         import matplotlib.ticker as ticker
+
         mappable = ax.imshow(p_slice, cmap="coolwarm", interpolation="nearest")
         ax.set_title(title)
         cb = fig.colorbar(mappable, ax=ax, fraction=0.046, pad=0.04, label=label)
@@ -695,11 +712,17 @@ def tortuosity_lbm(
     n_pore_before = int(im.sum())
     im = _trim_nonpercolating(im, axis)
     if im.sum() == 0:
-        raise RuntimeError("No percolating paths along the given axis found in the image.")
+        raise RuntimeError(
+            "No percolating paths along the given axis found in the image."
+        )
     n_removed = n_pore_before - int(im.sum())
     if n_removed > 0:
-        logger.warning(f"Trimmed {n_removed} non-percolating pore voxels from the image.")
-    solver = TransientDiffusion(im, axis=axis, D=D, voxel_size=voxel_size, sparse=sparse)
+        logger.warning(
+            f"Trimmed {n_removed} non-percolating pore voxels from the image."
+        )
+    solver = TransientDiffusion(
+        im, axis=axis, D=D, voxel_size=voxel_size, sparse=sparse
+    )
     solver.run(n_steps=n_steps, tol=tol, verbose=verbose)
     if not solver.converged:
         logger.warning(
@@ -786,10 +809,14 @@ def permeability_lbm(
     n_pore_before = int(im.sum())
     im = _trim_nonpercolating(im, axis)
     if im.sum() == 0:
-        raise RuntimeError("No percolating paths along the given axis found in the image.")
+        raise RuntimeError(
+            "No percolating paths along the given axis found in the image."
+        )
     n_removed = n_pore_before - int(im.sum())
     if n_removed > 0:
-        logger.warning(f"Trimmed {n_removed} non-percolating pore voxels from the image.")
+        logger.warning(
+            f"Trimmed {n_removed} non-percolating pore voxels from the image."
+        )
     solver = TransientFlow(im, axis=axis, nu=nu, rho=rho,
                            voxel_size=voxel_size, sparse=sparse)  # fmt: skip
     solver.run(n_steps=n_steps, tol=tol, verbose=verbose)

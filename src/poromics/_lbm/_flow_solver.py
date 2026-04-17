@@ -84,8 +84,12 @@ class _D3Q19Solver:
         if not sparse:
             self._solid = ti.field(ti.i8, shape=(nx, ny, nz))
             self._solid.from_numpy(solid.astype(np.int8))
-            self._f = ti.Vector.field(19, ti.f32, shape=(nx, ny, nz), layout=ti.Layout.SOA)
-            self._F = ti.Vector.field(19, ti.f32, shape=(nx, ny, nz), layout=ti.Layout.SOA)
+            self._f = ti.Vector.field(
+                19, ti.f32, shape=(nx, ny, nz), layout=ti.Layout.SOA
+            )
+            self._F = ti.Vector.field(
+                19, ti.f32, shape=(nx, ny, nz), layout=ti.Layout.SOA
+            )
             self._rho = ti.field(ti.f32, shape=(nx, ny, nz))
             self._v = ti.Vector.field(3, ti.f32, shape=(nx, ny, nz))
         else:
@@ -107,8 +111,12 @@ class _D3Q19Solver:
             self._F = ti.Vector.field(19, ti.f32)
             self._rho = ti.field(ti.f32)
             self._v = ti.Vector.field(3, ti.f32)
-            cell = ti.root.pointer(ti.ijk, (nx // part + 1, ny // part + 1, nz // part + 1))
-            cell.dense(ti.ijk, (part, part, part)).place(self._rho, self._v, self._f, self._F)
+            cell = ti.root.pointer(
+                ti.ijk, (nx // part + 1, ny // part + 1, nz // part + 1)
+            )
+            cell.dense(ti.ijk, (part, part, part)).place(
+                self._rho, self._v, self._f, self._F
+            )
 
     def _load_constants(self, ti, nu):
         """Load lattice vectors, weights, and MRT matrices into fields."""
@@ -245,11 +253,7 @@ class _D3Q19Solver:
         ti = self._ti
 
         @ti.kernel
-        def kernel(
-            solid: ti.template(), rho: ti.template(), v: ti.template(),
-            f: ti.template(), F: ti.template(), w: ti.template(),
-            sparse: ti.template(),
-        ):  # fmt: skip
+        def kernel(solid: ti.template(), rho: ti.template(), v: ti.template(), f: ti.template(), F: ti.template(), w: ti.template(), sparse: ti.template(),):  # fmt: skip
             for i, j, k in solid:
                 if (not sparse) or (solid[i, j, k] == 0):
                     rho[i, j, k] = 1.0
@@ -268,11 +272,7 @@ class _D3Q19Solver:
         # ── Fused finalize + collision ────────────────────────────────
 
         @ti.kernel
-        def finalize_collide(
-            solid: ti.template(), rho: ti.template(), v: ti.template(),
-            f: ti.template(), F: ti.template(), M: ti.template(),
-            inv_M: ti.template(), S_dig: ti.template(), e_f: ti.template(),
-        ):  # fmt: skip
+        def finalize_collide(solid: ti.template(), rho: ti.template(), v: ti.template(), f: ti.template(), F: ti.template(), M: ti.template(), inv_M: ti.template(), S_dig: ti.template(), e_f: ti.template(),):  # fmt: skip
             for i in ti.grouped(rho):
                 if solid[i] == 0:
                     # Compute macroscopic rho and u from F
@@ -312,10 +312,7 @@ class _D3Q19Solver:
         # ── Streaming with periodic BCs and bounce-back ───────────────
 
         @ti.kernel
-        def stream(
-            solid: ti.template(), f: ti.template(), F: ti.template(),
-            e: ti.template(), nx_: int, ny_: int, nz_: int,
-        ):  # fmt: skip
+        def stream(solid: ti.template(), f: ti.template(), F: ti.template(), e: ti.template(), nx_: int, ny_: int, nz_: int,):  # fmt: skip
             for i in ti.grouped(f):
                 if solid[i] == 0:
                     for s in ti.static(range(19)):
@@ -340,11 +337,7 @@ class _D3Q19Solver:
         # ── Equilibrium pressure BCs (one kernel per axis) ────────────
 
         @ti.kernel
-        def bc_x(
-            solid_: ti.template(), F_: ti.template(), v_: ti.template(),
-            w_: ti.template(), e_f_: ti.template(), idx_: int, nb_: int,
-            rho_bc_: float, ny_: int, nz_: int,
-        ):  # fmt: skip
+        def bc_x(solid_: ti.template(), F_: ti.template(), v_: ti.template(), w_: ti.template(), e_f_: ti.template(), idx_: int, nb_: int, rho_bc_: float, ny_: int, nz_: int,):  # fmt: skip
             for j, k in ti.ndrange((0, ny_), (0, nz_)):
                 if solid_[idx_, j, k] == 0:
                     u = v_[idx_, j, k]
@@ -354,15 +347,13 @@ class _D3Q19Solver:
                         eu = e_f_[s].dot(u)
                         uv = u.dot(u)
                         F_[idx_, j, k][s] = (
-                            w_[s] * rho_bc_ * (1.0 + 3.0 * eu + 4.5 * eu * eu - 1.5 * uv)
+                            w_[s]
+                            * rho_bc_
+                            * (1.0 + 3.0 * eu + 4.5 * eu * eu - 1.5 * uv)
                         )
 
         @ti.kernel
-        def bc_y(
-            solid_: ti.template(), F_: ti.template(), v_: ti.template(),
-            w_: ti.template(), e_f_: ti.template(), idx_: int, nb_: int,
-            rho_bc_: float, nx_: int, nz_: int,
-        ):  # fmt: skip
+        def bc_y(solid_: ti.template(), F_: ti.template(), v_: ti.template(), w_: ti.template(), e_f_: ti.template(), idx_: int, nb_: int, rho_bc_: float, nx_: int, nz_: int,):  # fmt: skip
             for i, k in ti.ndrange((0, nx_), (0, nz_)):
                 if solid_[i, idx_, k] == 0:
                     u = v_[i, idx_, k]
@@ -372,15 +363,13 @@ class _D3Q19Solver:
                         eu = e_f_[s].dot(u)
                         uv = u.dot(u)
                         F_[i, idx_, k][s] = (
-                            w_[s] * rho_bc_ * (1.0 + 3.0 * eu + 4.5 * eu * eu - 1.5 * uv)
+                            w_[s]
+                            * rho_bc_
+                            * (1.0 + 3.0 * eu + 4.5 * eu * eu - 1.5 * uv)
                         )
 
         @ti.kernel
-        def bc_z(
-            solid_: ti.template(), F_: ti.template(), v_: ti.template(),
-            w_: ti.template(), e_f_: ti.template(), idx_: int, nb_: int,
-            rho_bc_: float, nx_: int, ny_: int
-        ):  # fmt: skip
+        def bc_z(solid_: ti.template(), F_: ti.template(), v_: ti.template(), w_: ti.template(), e_f_: ti.template(), idx_: int, nb_: int, rho_bc_: float, nx_: int, ny_: int):  # fmt: skip
             for i, j in ti.ndrange((0, nx_), (0, ny_)):
                 if solid_[i, j, idx_] == 0:
                     u = v_[i, j, idx_]
@@ -390,7 +379,9 @@ class _D3Q19Solver:
                         eu = e_f_[s].dot(u)
                         uv = u.dot(u)
                         F_[i, j, idx_][s] = (
-                            w_[s] * rho_bc_ * (1.0 + 3.0 * eu + 4.5 * eu * eu - 1.5 * uv)
+                            w_[s]
+                            * rho_bc_
+                            * (1.0 + 3.0 * eu + 4.5 * eu * eu - 1.5 * uv)
                         )
 
         self._finalize_collide = finalize_collide

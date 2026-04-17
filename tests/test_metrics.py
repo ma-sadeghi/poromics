@@ -149,7 +149,8 @@ def test_tortuosity_fd_gpu_no_sigbus_across_fresh_processes(tmp_path):
                 f"run {i}: exit={proc.returncode}\n"
                 f"stderr={proc.stderr.decode(errors='replace')[-500:]}"
             )
-    assert not failures, (
-        f"{len(failures)}/{n_runs} fresh-process runs failed:\n"
-        + "\n---\n".join(failures)
+    assert (
+        not failures
+    ), f"{len(failures)}/{n_runs} fresh-process runs failed:\n" + "\n---\n".join(
+        failures
     )

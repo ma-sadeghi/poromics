@@ -352,9 +352,7 @@ class PressureUnitsTest:
         s2 = TransientFlow(im, axis=0, nu=1e-6, voxel_size=1e-6, rho=1000.0)
         s2.run(n_steps=200, tol=None)
         np.testing.assert_allclose(s2.pressure, 1000.0 * s1.pressure, rtol=1e-10)
-        np.testing.assert_allclose(
-            s1.pressure, 1.0 * s1.kinematic_pressure, rtol=1e-10
-        )
+        np.testing.assert_allclose(s1.pressure, 1.0 * s1.kinematic_pressure, rtol=1e-10)
 
     def test_permeability_lbm_pressure_none_without_rho(self):
         im = np.ones((10, 10, 10), dtype=bool)
@@ -434,7 +432,11 @@ class ConvergenceSignalTest:
         try:
             im = np.ones((10, 10, 10), dtype=bool)
             result = permeability_lbm(
-                im, axis=0, voxel_size=1e-6, n_steps=1, tol=1e-12,
+                im,
+                axis=0,
+                voxel_size=1e-6,
+                n_steps=1,
+                tol=1e-12,
             )
         finally:
             _loguru.remove(handler_id)
