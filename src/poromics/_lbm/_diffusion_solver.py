@@ -36,18 +36,30 @@ class _D3Q7Solver:
         """Allocate Taichi fields for distributions and concentration."""
         nx, ny, nz = self._nx, self._ny, self._nz
 
-        self._solid = ti.field(ti.i8, shape=(nx, ny, nz))
-        self._solid.from_numpy(solid.astype(np.int8))
-
         if not sparse:
+            self._solid = ti.field(ti.i8, shape=(nx, ny, nz))
+            self._solid.from_numpy(solid.astype(np.int8))
             self._g = ti.Vector.field(7, ti.f32, shape=(nx, ny, nz), layout=ti.Layout.SOA)
             self._G = ti.Vector.field(7, ti.f32, shape=(nx, ny, nz), layout=ti.Layout.SOA)
             self._c = ti.field(ti.f32, shape=(nx, ny, nz))
         else:
+            # Pointer SNode allocates in blocks of `part`, so fields are
+            # padded up to the next multiple. `_solid` must match that
+            # padded shape with padding marked solid — otherwise kernels
+            # iterating over `grouped(c)` hit activated padding cells and
+            # treat them as pore because `solid[i]` reads beyond the
+            # dense-backed range.
+            part = 3
+            px = (nx // part + 1) * part
+            py = (ny // part + 1) * part
+            pz = (nz // part + 1) * part
+            solid_padded = np.ones((px, py, pz), dtype=np.int8)
+            solid_padded[:nx, :ny, :nz] = solid.astype(np.int8)
+            self._solid = ti.field(ti.i8, shape=(px, py, pz))
+            self._solid.from_numpy(solid_padded)
             self._g = ti.Vector.field(7, ti.f32)
             self._G = ti.Vector.field(7, ti.f32)
             self._c = ti.field(ti.f32)
-            part = 3
             cell = ti.root.pointer(ti.ijk, (nx // part + 1, ny // part + 1, nz // part + 1))
             cell.dense(ti.ijk, (part, part, part)).place(self._c, self._g, self._G)
 
@@ -125,7 +137,10 @@ class _D3Q7Solver:
 
     def get_concentration(self):
         """Extract concentration field as NumPy array."""
-        return self._c.to_numpy()
+        # Sparse pointer SNode allocates in blocks of `part` voxels per axis,
+        # so `_c` may be larger than (nx, ny, nz). Trim back to the image.
+        nx, ny, nz = self._nx, self._ny, self._nz
+        return self._c.to_numpy()[:nx, :ny, :nz]
 
     def compute_flux(self, axis, n_slices=5):
         """Compute diffusive flux averaged across interior slices.
@@ -153,8 +168,9 @@ class _D3Q7Solver:
         """
         if n_slices < 1:
             raise ValueError(f"n_slices must be >= 1, got {n_slices}")
-        c_np = self._c.to_numpy()
-        solid_np = self._solid.to_numpy()
+        nx, ny, nz = self._nx, self._ny, self._nz
+        c_np = self._c.to_numpy()[:nx, :ny, :nz]
+        solid_np = self._solid.to_numpy()[:nx, :ny, :nz]
         L = c_np.shape[axis]
         # Need slc_lo >= 1 and slc_hi <= L-1 (each face is a Dirichlet BC).
         # Sample evenly across the central 60% of the domain.

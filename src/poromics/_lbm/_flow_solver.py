@@ -81,20 +81,32 @@ class _D3Q19Solver:
         """Allocate Taichi fields for distributions and macroscopic vars."""
         nx, ny, nz = self._nx, self._ny, self._nz
 
-        self._solid = ti.field(ti.i8, shape=(nx, ny, nz))
-        self._solid.from_numpy(solid.astype(np.int8))
-
         if not sparse:
+            self._solid = ti.field(ti.i8, shape=(nx, ny, nz))
+            self._solid.from_numpy(solid.astype(np.int8))
             self._f = ti.Vector.field(19, ti.f32, shape=(nx, ny, nz), layout=ti.Layout.SOA)
             self._F = ti.Vector.field(19, ti.f32, shape=(nx, ny, nz), layout=ti.Layout.SOA)
             self._rho = ti.field(ti.f32, shape=(nx, ny, nz))
             self._v = ti.Vector.field(3, ti.f32, shape=(nx, ny, nz))
         else:
+            # Pointer SNode allocates in blocks of `part`, so fields are
+            # padded up to the next multiple. `_solid` must match that
+            # padded shape with padding marked solid — otherwise kernels
+            # iterating over `grouped(rho)` hit activated padding cells
+            # and treat them as pore because `solid[i]` reads beyond the
+            # dense-backed range.
+            part = 3
+            px = (nx // part + 1) * part
+            py = (ny // part + 1) * part
+            pz = (nz // part + 1) * part
+            solid_padded = np.ones((px, py, pz), dtype=np.int8)
+            solid_padded[:nx, :ny, :nz] = solid.astype(np.int8)
+            self._solid = ti.field(ti.i8, shape=(px, py, pz))
+            self._solid.from_numpy(solid_padded)
             self._f = ti.Vector.field(19, ti.f32)
             self._F = ti.Vector.field(19, ti.f32)
             self._rho = ti.field(ti.f32)
             self._v = ti.Vector.field(3, ti.f32)
-            part = 3
             cell = ti.root.pointer(ti.ijk, (nx // part + 1, ny // part + 1, nz // part + 1))
             cell.dense(ti.ijk, (part, part, part)).place(self._rho, self._v, self._f, self._F)
 
@@ -181,11 +193,15 @@ class _D3Q19Solver:
 
     def get_velocity(self):
         """Extract velocity field as NumPy array, shape (nx,ny,nz,3)."""
-        return self._v.to_numpy()
+        # Sparse pointer SNode allocates in blocks of `part` voxels per axis,
+        # so `_v` may be larger than (nx, ny, nz). Trim back to the image.
+        nx, ny, nz = self._nx, self._ny, self._nz
+        return self._v.to_numpy()[:nx, :ny, :nz]
 
     def get_density(self):
         """Extract density field as NumPy array, shape (nx,ny,nz)."""
-        return self._rho.to_numpy()
+        nx, ny, nz = self._nx, self._ny, self._nz
+        return self._rho.to_numpy()[:nx, :ny, :nz]
 
     # ── Taichi kernels ────────────────────────────────────────────────
 
