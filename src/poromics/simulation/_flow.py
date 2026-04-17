@@ -129,8 +129,7 @@ class TransientFlow:
                     update_progress(pbar, step, ratio, tol, n_steps)
                 if tol is not None and step > 0 and v_total > 0 and ratio < tol:
                     logger.info(
-                        f"Converged at step {step} "
-                        f"(delta|v|/|v|={ratio:.2e} < tol={tol:.2e})"
+                        f"Converged at step {step} (delta|v|/|v|={ratio:.2e} < tol={tol:.2e})"
                     )
                     if pbar is not None:
                         pbar.n = 100

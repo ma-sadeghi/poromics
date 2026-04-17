@@ -143,9 +143,7 @@ def is_julia_installed(error: bool = False) -> bool:
     # Look for local Julia executable (e.g., installed by juliapkg)
     if can_skip_resolve():
         return True
-    msg = (
-        "Julia not found. Visit https://github.com/JuliaLang/juliaup and install Julia."
-    )
+    msg = "Julia not found. Visit https://github.com/JuliaLang/juliaup and install Julia."
     if error:
         raise ImportError(msg)
     return False
@@ -254,9 +252,7 @@ def ensure_gpu_backend(Main: Any) -> str | None:
         try:
             Main.seval(f'import Pkg; Pkg.add("{backend}"); using {backend}')
         except JuliaError as e:
-            logger.warning(
-                f"Failed to install/load {backend}.jl: {e}. Falling back to CPU."
-            )
+            logger.warning(f"Failed to install/load {backend}.jl: {e}. Falling back to CPU.")
             return None
     # Upstream Tortuosity{Backend}Ext.__init__ registers the backend only when
     # `.functional()` is true. When the package loads but the hardware is not

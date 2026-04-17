@@ -84,12 +84,8 @@ class _D3Q19Solver:
         if not sparse:
             self._solid = ti.field(ti.i8, shape=(nx, ny, nz))
             self._solid.from_numpy(solid.astype(np.int8))
-            self._f = ti.Vector.field(
-                19, ti.f32, shape=(nx, ny, nz), layout=ti.Layout.SOA
-            )
-            self._F = ti.Vector.field(
-                19, ti.f32, shape=(nx, ny, nz), layout=ti.Layout.SOA
-            )
+            self._f = ti.Vector.field(19, ti.f32, shape=(nx, ny, nz), layout=ti.Layout.SOA)
+            self._F = ti.Vector.field(19, ti.f32, shape=(nx, ny, nz), layout=ti.Layout.SOA)
             self._rho = ti.field(ti.f32, shape=(nx, ny, nz))
             self._v = ti.Vector.field(3, ti.f32, shape=(nx, ny, nz))
         else:
@@ -111,12 +107,8 @@ class _D3Q19Solver:
             self._F = ti.Vector.field(19, ti.f32)
             self._rho = ti.field(ti.f32)
             self._v = ti.Vector.field(3, ti.f32)
-            cell = ti.root.pointer(
-                ti.ijk, (nx // part + 1, ny // part + 1, nz // part + 1)
-            )
-            cell.dense(ti.ijk, (part, part, part)).place(
-                self._rho, self._v, self._f, self._F
-            )
+            cell = ti.root.pointer(ti.ijk, (nx // part + 1, ny // part + 1, nz // part + 1))
+            cell.dense(ti.ijk, (part, part, part)).place(self._rho, self._v, self._f, self._F)
 
     def _load_constants(self, ti, nu):
         """Load lattice vectors, weights, and MRT matrices into fields."""
@@ -347,9 +339,7 @@ class _D3Q19Solver:
                         eu = e_f_[s].dot(u)
                         uv = u.dot(u)
                         F_[idx_, j, k][s] = (
-                            w_[s]
-                            * rho_bc_
-                            * (1.0 + 3.0 * eu + 4.5 * eu * eu - 1.5 * uv)
+                            w_[s] * rho_bc_ * (1.0 + 3.0 * eu + 4.5 * eu * eu - 1.5 * uv)
                         )
 
         @ti.kernel
@@ -363,9 +353,7 @@ class _D3Q19Solver:
                         eu = e_f_[s].dot(u)
                         uv = u.dot(u)
                         F_[i, idx_, k][s] = (
-                            w_[s]
-                            * rho_bc_
-                            * (1.0 + 3.0 * eu + 4.5 * eu * eu - 1.5 * uv)
+                            w_[s] * rho_bc_ * (1.0 + 3.0 * eu + 4.5 * eu * eu - 1.5 * uv)
                         )
 
         @ti.kernel
@@ -379,9 +367,7 @@ class _D3Q19Solver:
                         eu = e_f_[s].dot(u)
                         uv = u.dot(u)
                         F_[i, j, idx_][s] = (
-                            w_[s]
-                            * rho_bc_
-                            * (1.0 + 3.0 * eu + 4.5 * eu * eu - 1.5 * uv)
+                            w_[s] * rho_bc_ * (1.0 + 3.0 * eu + 4.5 * eu * eu - 1.5 * uv)
                         )
 
         self._finalize_collide = finalize_collide

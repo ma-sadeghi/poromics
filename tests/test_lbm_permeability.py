@@ -316,9 +316,7 @@ class RescaleTest:
         r2 = base_result.rescale(voxel_size=1e-6, nu=1e-6, rho=1000.0)
         assert r2.pressure is not None
         assert r2.pressure.shape == base_result.im.shape
-        np.testing.assert_allclose(
-            r2.pressure, 1000.0 * r2.kinematic_pressure, rtol=1e-12
-        )
+        np.testing.assert_allclose(r2.pressure, 1000.0 * r2.kinematic_pressure, rtol=1e-12)
 
     def test_rescale_is_chainable(self, base_result):
         """Rescaling a rescaled result should work."""

@@ -39,12 +39,8 @@ class _D3Q7Solver:
         if not sparse:
             self._solid = ti.field(ti.i8, shape=(nx, ny, nz))
             self._solid.from_numpy(solid.astype(np.int8))
-            self._g = ti.Vector.field(
-                7, ti.f32, shape=(nx, ny, nz), layout=ti.Layout.SOA
-            )
-            self._G = ti.Vector.field(
-                7, ti.f32, shape=(nx, ny, nz), layout=ti.Layout.SOA
-            )
+            self._g = ti.Vector.field(7, ti.f32, shape=(nx, ny, nz), layout=ti.Layout.SOA)
+            self._G = ti.Vector.field(7, ti.f32, shape=(nx, ny, nz), layout=ti.Layout.SOA)
             self._c = ti.field(ti.f32, shape=(nx, ny, nz))
         else:
             # Pointer SNode allocates in blocks of `part`, so fields are
@@ -64,9 +60,7 @@ class _D3Q7Solver:
             self._g = ti.Vector.field(7, ti.f32)
             self._G = ti.Vector.field(7, ti.f32)
             self._c = ti.field(ti.f32)
-            cell = ti.root.pointer(
-                ti.ijk, (nx // part + 1, ny // part + 1, nz // part + 1)
-            )
+            cell = ti.root.pointer(ti.ijk, (nx // part + 1, ny // part + 1, nz // part + 1))
             cell.dense(ti.ijk, (part, part, part)).place(self._c, self._g, self._G)
 
     def _load_constants(self, ti):

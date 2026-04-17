@@ -230,14 +230,10 @@ def tortuosity_fd(
     n_pore_before = int(im.sum())
     im = _trim_nonpercolating(im, axis)
     if im.sum() == 0:
-        raise RuntimeError(
-            "No percolating paths along the given axis found in the image."
-        )
+        raise RuntimeError("No percolating paths along the given axis found in the image.")
     n_removed = n_pore_before - int(im.sum())
     if n_removed > 0:
-        logger.warning(
-            f"Trimmed {n_removed} non-percolating pore voxels from the image."
-        )
+        logger.warning(f"Trimmed {n_removed} non-percolating pore voxels from the image.")
         if D is not None:
             D = np.array(D, copy=True)
             D[~im] = 0.0
@@ -329,9 +325,7 @@ class TortuosityResult(SimulationResult):
             f"  D_eff/D    = {self.D_eff:.6f}",
             f"  F          = {self.formation_factor:.4f}",
             f"  converged  = {self.converged}"
-            + (
-                f" ({self.n_iterations} iters)" if self.n_iterations is not None else ""
-            ),
+            + (f" ({self.n_iterations} iters)" if self.n_iterations is not None else ""),
         ]
         return "\n".join(lines)
 
@@ -367,9 +361,7 @@ class TortuosityResult(SimulationResult):
         if ax is not None:
             mappable = ax.imshow(c_slice, cmap="viridis", interpolation="nearest")
             ax.set_title("Concentration field")
-            cb = ax.figure.colorbar(
-                mappable, ax=ax, fraction=0.046, pad=0.04, label="c"
-            )
+            cb = ax.figure.colorbar(mappable, ax=ax, fraction=0.046, pad=0.04, label="c")
             cb.ax.yaxis.set_major_formatter(ticker.ScalarFormatter(useMathText=True))
             cb.ax.ticklabel_format(style="scientific", scilimits=(-1, 1))
             return ax.figure, ax
@@ -516,9 +508,7 @@ class PermeabilityResult(SimulationResult):
             f"  u_darcy    = {self.u_darcy:.4e} m/s",
             f"  u_pore     = {self.u_pore:.4e} m/s",
             f"  converged  = {self.converged}"
-            + (
-                f" ({self.n_iterations} iters)" if self.n_iterations is not None else ""
-            ),
+            + (f" ({self.n_iterations} iters)" if self.n_iterations is not None else ""),
         ]
         return "\n".join(lines)
 
@@ -566,9 +556,7 @@ class PermeabilityResult(SimulationResult):
         from mpl_toolkits.axes_grid1 import make_axes_locatable
 
         fig, axes = plt.subplots(1, 2, figsize=(7.5, 4))
-        mappable0 = axes[0].imshow(
-            speed_masked, cmap="viridis", interpolation="nearest"
-        )
+        mappable0 = axes[0].imshow(speed_masked, cmap="viridis", interpolation="nearest")
         axes[0].set_title("Velocity magnitude")
         div0 = make_axes_locatable(axes[0])
         cax0 = div0.append_axes("right", size="5%", pad=0.05)
@@ -712,17 +700,11 @@ def tortuosity_lbm(
     n_pore_before = int(im.sum())
     im = _trim_nonpercolating(im, axis)
     if im.sum() == 0:
-        raise RuntimeError(
-            "No percolating paths along the given axis found in the image."
-        )
+        raise RuntimeError("No percolating paths along the given axis found in the image.")
     n_removed = n_pore_before - int(im.sum())
     if n_removed > 0:
-        logger.warning(
-            f"Trimmed {n_removed} non-percolating pore voxels from the image."
-        )
-    solver = TransientDiffusion(
-        im, axis=axis, D=D, voxel_size=voxel_size, sparse=sparse
-    )
+        logger.warning(f"Trimmed {n_removed} non-percolating pore voxels from the image.")
+    solver = TransientDiffusion(im, axis=axis, D=D, voxel_size=voxel_size, sparse=sparse)
     solver.run(n_steps=n_steps, tol=tol, verbose=verbose)
     if not solver.converged:
         logger.warning(
@@ -809,14 +791,10 @@ def permeability_lbm(
     n_pore_before = int(im.sum())
     im = _trim_nonpercolating(im, axis)
     if im.sum() == 0:
-        raise RuntimeError(
-            "No percolating paths along the given axis found in the image."
-        )
+        raise RuntimeError("No percolating paths along the given axis found in the image.")
     n_removed = n_pore_before - int(im.sum())
     if n_removed > 0:
-        logger.warning(
-            f"Trimmed {n_removed} non-percolating pore voxels from the image."
-        )
+        logger.warning(f"Trimmed {n_removed} non-percolating pore voxels from the image.")
     solver = TransientFlow(im, axis=axis, nu=nu, rho=rho,
                            voxel_size=voxel_size, sparse=sparse)  # fmt: skip
     solver.run(n_steps=n_steps, tol=tol, verbose=verbose)
