@@ -43,8 +43,7 @@ class TransientDiffusion:
     >>> c = solver.concentration
     """
 
-    def __init__(self, im, axis, D, voxel_size, c_in=1.0, c_out=0.0,
-                 sparse=False):  # fmt: skip
+    def __init__(self, im, axis, D, voxel_size, c_in=1.0, c_out=0.0,sparse=False):  # fmt: skip
         if axis not in (0, 1, 2):
             raise ValueError(f"axis must be 0, 1, or 2, got {axis}")
         if D <= 0:
@@ -75,8 +74,7 @@ class TransientDiffusion:
 
     # ── Execution ─────────────────────────────────────────────────────
 
-    def run(self, n_steps=100_000, tol=1e-3, log_every=500,
-            verbose=False):  # fmt: skip
+    def run(self, n_steps=100_000, tol=1e-3, log_every=500,verbose=False):  # fmt: skip
         """Run the solver to steady state.
 
         Parameters
@@ -118,8 +116,7 @@ class TransientDiffusion:
                     update_progress(pbar, step, ratio, tol, n_steps)
                 if tol is not None and step > 0 and c_total > 0 and ratio < tol:
                     logger.info(
-                        f"Converged at step {step} "
-                        f"(delta|c|/|c|={ratio:.2e} < tol={tol:.2e})"
+                        f"Converged at step {step} (delta|c|/|c|={ratio:.2e} < tol={tol:.2e})"
                     )
                     if pbar is not None:
                         pbar.n = 100

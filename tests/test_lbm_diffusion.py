@@ -74,9 +74,11 @@ def test_tau_lbm_sparse_matches_dense():
     if arch not in ("cpu", "x64", "arm64", "cuda"):
         pytest.skip(f"sparse storage not supported on Taichi backend '{arch}'")
 
+    # Slab of pore along x=5..19; the x=0..4 half is solid. Transport must
+    # run along y or z so the channel percolates between inlet and outlet.
     im = np.zeros((20, 20, 20), dtype=bool)
-    im[5:, :, :] = True  # half-open channel
-    kwargs = dict(axis=0, voxel_size=1.0, n_steps=5000, tol=1e-3)
+    im[5:, :, :] = True
+    kwargs = dict(axis=1, voxel_size=1.0, n_steps=5000, tol=1e-3)
     r_dense = tortuosity_lbm(im, sparse=False, **kwargs)
     r_sparse = tortuosity_lbm(im, sparse=True, **kwargs)
     assert r_sparse.tau == pytest.approx(r_dense.tau, rel=1e-3)

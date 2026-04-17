@@ -11,6 +11,10 @@ import sys
 
 os.environ["PYTHON_JULIACALL_STARTUP_FILE"] = "no"
 os.environ["PYTHON_JULIACALL_AUTOLOAD_IPYTHON_EXTENSION"] = "no"
+# juliacall defaults --handle-signals=no; without Julia's signal handlers,
+# first-call GPU init on Darwin/Metal aborts with SIGBUS ~60% of the time.
+# Tradeoff: Ctrl-C won't raise KeyboardInterrupt while Julia is running.
+os.environ.setdefault("PYTHON_JULIACALL_HANDLE_SIGNALS", "yes")
 
 _jl = None
 _taujl = None
@@ -34,12 +38,18 @@ def _run_tortuosity_fd(im, axis, D, rtol, gpu, verbose):
 
     jl, taujl = _ensure_julia()
 
+    from poromics import julia_helpers
+
+    use_gpu = bool(gpu) and julia_helpers.ensure_gpu_backend(jl) is not None
     axis_jl = jl.Symbol(["x", "y", "z"][axis])
-    sim = taujl.TortuositySimulation(im, D=D, axis=axis_jl, gpu=gpu)
+    sim = taujl.SteadyDiffusionProblem(im, axis=axis_jl, D=D, gpu=use_gpu)
     sol = taujl.solve(sim.prob, taujl.KrylovJL_CG(), verbose=verbose, reltol=rtol)
-    c = taujl.vec_to_grid(sol.u, im)
-    tau = taujl.tortuosity(c, axis=axis_jl, D=D)
-    D_eff = taujl.effective_diffusivity(c, axis=axis_jl, D=D)
+    c = taujl.reconstruct_field(sol.u, im)
+    # Tortuosity.jl v0.0.6 requires a numeric D (default 1.0); don't forward
+    # Python None, which juliacall would turn into Julia `nothing`.
+    post_kwargs = {"axis": axis_jl} if D is None else {"axis": axis_jl, "D": D}
+    tau = taujl.tortuosity(c, im, **post_kwargs)
+    D_eff = taujl.effective_diffusivity(c, im, **post_kwargs)
 
     pore_mask = np.asarray(im, dtype=bool)
     porosity = float(pore_mask.sum()) / pore_mask.size

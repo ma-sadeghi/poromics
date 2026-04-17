@@ -36,12 +36,17 @@ def _trim_nonpercolating(im, axis):
     outlets = ps.generators.faces(im.shape, outlet=axis)
     return ps.filters.trim_nonpercolating_paths(im, inlets=inlets, outlets=outlets)
 
+
 _JULIA_SUBPROCESS = os.environ.get("POROMICS_JULIA_SUBPROCESS", "1") == "1"
 
 # ── In-process Julia (used when POROMICS_JULIA_SUBPROCESS=0) ─────────
 
 os.environ["PYTHON_JULIACALL_STARTUP_FILE"] = "no"
 os.environ["PYTHON_JULIACALL_AUTOLOAD_IPYTHON_EXTENSION"] = "no"
+# juliacall defaults --handle-signals=no; without Julia's signal handlers,
+# first-call GPU init on Darwin/Metal aborts with SIGBUS ~60% of the time.
+# Tradeoff: Ctrl-C won't raise KeyboardInterrupt while Julia is running.
+os.environ.setdefault("PYTHON_JULIACALL_HANDLE_SIGNALS", "yes")
 
 _jl = None
 _taujl = None
@@ -70,13 +75,19 @@ def _ensure_julia():
 
 def _tortuosity_fd_inprocess(im, axis, D, rtol, gpu, verbose):
     """Run the Julia FD solver in the current process."""
+    from poromics import julia_helpers
+
     jl, taujl = _ensure_julia()
+    use_gpu = bool(gpu) and julia_helpers.ensure_gpu_backend(jl) is not None
     axis_jl = jl.Symbol(["x", "y", "z"][axis])
-    sim = taujl.TortuositySimulation(im, D=D, axis=axis_jl, gpu=gpu)
+    sim = taujl.SteadyDiffusionProblem(im, axis=axis_jl, D=D, gpu=use_gpu)
     sol = taujl.solve(sim.prob, taujl.KrylovJL_CG(), verbose=verbose, reltol=rtol)
-    c = taujl.vec_to_grid(sol.u, im)
-    tau = taujl.tortuosity(c, axis=axis_jl, D=D)
-    D_eff = taujl.effective_diffusivity(c, axis=axis_jl, D=D)
+    c = taujl.reconstruct_field(sol.u, im)
+    # Tortuosity.jl v0.0.6 requires a numeric D (default 1.0); don't forward
+    # Python None, which juliacall would turn into Julia `nothing`.
+    post_kwargs = {"axis": axis_jl} if D is None else {"axis": axis_jl, "D": D}
+    tau = taujl.tortuosity(c, im, **post_kwargs)
+    D_eff = taujl.effective_diffusivity(c, im, **post_kwargs)
     porosity = float(im.sum()) / im.size
     formation_factor = 1.0 / D_eff if D_eff > 0 else float("inf")
     return TortuosityResult(
@@ -173,7 +184,7 @@ def tortuosity_fd(
     axis: int,
     D: np.ndarray | None = None,
     rtol: float = 1e-5,
-    gpu: bool = False,
+    gpu: bool = True,
     verbose: bool = True,
 ) -> "TortuosityResult":
     """Compute tortuosity via Julia FD solver.
@@ -197,7 +208,12 @@ def tortuosity_fd(
     rtol : float
         Relative tolerance for the solver.
     gpu : bool
-        If True, use GPU for computation.
+        If True (default), use GPU for computation. Poromics picks a backend
+        based on the platform (Darwin/arm64 → Metal, Linux/x86_64 → CUDA,
+        Windows/AMD64 → CUDA) and installs it lazily on first call. Set
+        ``POROMICS_GPU_BACKEND={metal,cuda,amdgpu}`` to override. When no
+        supported backend is available or the device isn't functional, falls
+        back to CPU with a warning. Set to False to force CPU.
     verbose : bool
         If True, print additional information during the solution process.
 
@@ -310,10 +326,8 @@ class TortuosityResult(SimulationResult):
             f"  tau        = {self.tau:.4f}",
             f"  D_eff/D    = {self.D_eff:.6f}",
             f"  F          = {self.formation_factor:.4f}",
-            f"  converged  = {self.converged}" + (
-                f" ({self.n_iterations} iters)"
-                if self.n_iterations is not None else ""
-            ),
+            f"  converged  = {self.converged}"
+            + (f" ({self.n_iterations} iters)" if self.n_iterations is not None else ""),
         ]
         return "\n".join(lines)
 
@@ -461,9 +475,7 @@ class PermeabilityResult(SimulationResult):
         result : PermeabilityResult
         """
         if self._velocity_lu is None:
-            raise RuntimeError(
-                "Lattice-unit data not available for rescaling."
-            )
+            raise RuntimeError("Lattice-unit data not available for rescaling.")
         dt = _d3q19.nu * voxel_size**2 / nu
         lu_to_phys = voxel_size / dt
         k = self._k_lu * voxel_size**2
@@ -474,13 +486,21 @@ class PermeabilityResult(SimulationResult):
         kinematic_pressure = _d3q19.cs2 * lu_to_phys**2 * gauge_rho
         pressure = rho * kinematic_pressure if rho is not None else None
         return PermeabilityResult(
-            im=self.im, axis=self.axis, porosity=self.porosity,
-            k=k, u_darcy=u_darcy, u_pore=u_pore,
-            velocity=velocity, kinematic_pressure=kinematic_pressure,
-            pressure=pressure, converged=self.converged,
+            im=self.im,
+            axis=self.axis,
+            porosity=self.porosity,
+            k=k,
+            u_darcy=u_darcy,
+            u_pore=u_pore,
+            velocity=velocity,
+            kinematic_pressure=kinematic_pressure,
+            pressure=pressure,
+            converged=self.converged,
             n_iterations=self.n_iterations,
-            _velocity_lu=self._velocity_lu, _rho_lu=self._rho_lu,
-            _rho_out=self._rho_out, _k_lu=self._k_lu,
+            _velocity_lu=self._velocity_lu,
+            _rho_lu=self._rho_lu,
+            _rho_out=self._rho_out,
+            _k_lu=self._k_lu,
             _u_darcy_lu=self._u_darcy_lu,
             _u_pore_lu=self._u_pore_lu,
         )
@@ -494,13 +514,10 @@ class PermeabilityResult(SimulationResult):
             f"  k          = {self.k:.4e} m\u00b2 ({k_mD:.2f} mD)",
             f"  u_darcy    = {self.u_darcy:.4e} m/s",
             f"  u_pore     = {self.u_pore:.4e} m/s",
-            f"  converged  = {self.converged}" + (
-                f" ({self.n_iterations} iters)"
-                if self.n_iterations is not None else ""
-            ),
+            f"  converged  = {self.converged}"
+            + (f" ({self.n_iterations} iters)" if self.n_iterations is not None else ""),
         ]
         return "\n".join(lines)
-
 
     def plot_velocity(self, z=None, ax=None):
         """Plot velocity magnitude and streamlines on a 2D slice.
@@ -536,7 +553,9 @@ class PermeabilityResult(SimulationResult):
         if ax is not None:
             mappable = ax.imshow(speed_masked, cmap="viridis", interpolation="nearest")
             ax.set_title("Velocity magnitude")
-            cb = ax.figure.colorbar(mappable, ax=ax, fraction=0.046, pad=0.04, label="|u| (m/s)")
+            cb = ax.figure.colorbar(
+                mappable, ax=ax, fraction=0.046, pad=0.04, label="|u| (m/s)"
+            )
             cb.ax.yaxis.set_major_formatter(ticker.ScalarFormatter(useMathText=True))
             cb.ax.ticklabel_format(style="scientific", scilimits=(-1, 1))
             return ax.figure, ax
@@ -557,8 +576,15 @@ class PermeabilityResult(SimulationResult):
         lw = 3 * speed / speed.max() + 0.1 if speed.max() > 0 else np.ones_like(speed)
         axes[1].imshow(im[:, :, z], cmap="gray", interpolation="nearest", alpha=0.3)
         axes[1].streamplot(
-            X, Y, v[:, :, 1], v[:, :, 0], color=speed,
-            cmap="viridis", density=2, linewidth=lw, arrowstyle="fancy",
+            X,
+            Y,
+            v[:, :, 1],
+            v[:, :, 0],
+            color=speed,
+            cmap="viridis",
+            density=2,
+            linewidth=lw,
+            arrowstyle="fancy",
         )
         axes[1].set_xlim(-0.5, ny - 0.5)
         axes[1].set_ylim(nx - 0.5, -0.5)
@@ -619,6 +645,7 @@ class PermeabilityResult(SimulationResult):
         else:
             fig = ax.figure
         import matplotlib.ticker as ticker
+
         mappable = ax.imshow(p_slice, cmap="coolwarm", interpolation="nearest")
         ax.set_title(title)
         cb = fig.colorbar(mappable, ax=ax, fraction=0.046, pad=0.04, label=label)
