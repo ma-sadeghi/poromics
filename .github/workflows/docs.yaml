@@ -25,7 +25,7 @@ jobs:
           cache-dependency-glob: "**/pyproject.toml"
 
       # Setting up Julia separately is not needed, but reduces CI time due to caching
-      - uses: julia-actions/setup-julia@v2
+      - uses: julia-actions/setup-julia@v3
         with:
           version: "1"
 
